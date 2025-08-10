@@ -4,7 +4,7 @@
 [![mypy](https://img.shields.io/badge/types-mypy-1f5082)](https://mypy-lang.org/)
 [![Security Scan](https://img.shields.io/badge/security-trivy-green)](https://github.com/aquasecurity/trivy-action)
 [![pre-commit.ci status](https://results.pre-commit.ci/badge/github/Drago-03/Luna-MCP-Services/main.svg)](https://results.pre-commit.ci/latest/github/Drago-03/Luna-MCP-Services/main)
-[![Coverage](https://img.shields.io/badge/coverage-pending-lightgrey)](#-test--reliability-notes)
+[![Coverage](https://codecov.io/gh/Drago-03/Luna-MCP-Services/branch/main/graph/badge.svg)](https://codecov.io/gh/Drago-03/Luna-MCP-Services)
 
 > Indie Hub submission for the **Puch AI Hackathon**  
 > Team: **Indie Hub** • Member: **Mantej Singh** • Server: **Luna MCP Server**

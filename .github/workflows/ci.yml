@@ -34,6 +34,11 @@ jobs:
       - name: Type Check (mypy)
         run: mypy . || true
 
+      - name: Run pre-commit hooks
+        run: |
+          pip install pre-commit
+          pre-commit run --all-files || true
+
       - name: Pytest (unit only, skip network)
         run: pytest -q -m "not network"
 
@@ -47,6 +52,14 @@ jobs:
         with:
           name: coverage-xml
           path: coverage.xml
+
+      - name: Upload coverage to Codecov
+        if: success()
+        uses: codecov/codecov-action@v4
+        with:
+          files: coverage.xml
+          fail_ci_if_error: false
+          verbose: false
 
       - name: Build Docker Image
         run: docker build -t luna-mcp:ci .

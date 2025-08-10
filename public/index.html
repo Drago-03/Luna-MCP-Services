@@ -49,6 +49,14 @@
   header.logo-wrap img { height:40px; width:auto; border-radius:6px; box-shadow:0 0 0 1px var(--border); }
   .lead { margin:.2rem 0 1.1rem; font-size:.8rem; color:var(--muted); }
   .split { display:grid; gap:1.5rem; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); }
+  /* Suggestions */
+  #suggestions { margin-top:.4rem; }
+  .suggestion-chips { display:flex; flex-wrap:wrap; gap:.4rem; margin-top:.25rem; }
+  .suggestion-chips button { line-height:1; }
+  /* Capability list */
+  .capability-groups { padding-left:1.1rem; font-size:.75rem; line-height:1.3; }
+  .capability-groups h3 { margin-top:1.75rem; }
+  #suggestions[data-hidden] { display:none; }
   @media (max-width:760px){ .bar { flex-direction:column; align-items:stretch; } }
   </style>
 </head>
@@ -77,6 +85,9 @@
     <div id="toolHelp" class="status">Select a tool to view description.</div>
     <label for="params">Parameters (JSON)</label>
     <textarea id="params" placeholder='{"prompt":"Hello"}' aria-label="Tool parameters"></textarea>
+  <div id="suggestions" class="status" data-hidden>
+      <div class="suggestion-chips" id="suggestionChips" aria-label="Prompt suggestions"></div>
+    </div>
     <div class="btn-row">
       <button id="runBtn">▶ Run</button>
       <button class="secondary" id="clearBtn" type="button">Clear</button>
@@ -104,6 +115,14 @@
   <section class="panel" id="panel-docs" role="tabpanel" aria-labelledby="tab-docs">
     <h2>Tool Documentation</h2>
     <div id="toolDocs">Select a tool to load its description.</div>
+  <h3>Capability Groups</h3>
+  <ul class="capability-groups">
+      <li><strong>AI Generation</strong>: <code>code_gen</code>, <code>voice_speak</code></li>
+      <li><strong>Images</strong>: <code>img_bw</code>, <code>bw_remote</code></li>
+      <li><strong>GitHub Automation</strong>: <code>git_clone</code>, <code>create_branch</code>, <code>commit_file</code>, <code>open_pr</code>, <code>list_issues</code></li>
+      <li><strong>CI & Dev</strong>: <code>ci_trigger</code>, <code>run_tests</code>, <code>scaffold_project</code>, <code>build_image</code></li>
+      <li><strong>Utility</strong>: <code>validate</code></li>
+    </ul>
   </section>
 
   <section class="panel" id="panel-validate" role="tabpanel" aria-labelledby="tab-validate">
@@ -151,8 +170,10 @@ async function selectTool(name){
     const d = await fetchJSON(`/public/describe/${encodeURIComponent(name)}`);
     help.innerHTML = `<span class='ok'>${d.tool}</span>: ${d.description}`;
   docs.innerHTML = `<h3 style='margin-top:0'>${d.tool}</h3><p>${d.description}</p><p><strong>Invoke:</strong> POST /public/execute {"method":"${d.tool}","params":{}}</p>`;
+  renderSuggestions(name);
   } catch(e){
     help.innerHTML = `<span class='err'>Description error: ${e.message}</span>`;
+  renderSuggestions(null);
   }
 }
 
@@ -177,7 +198,14 @@ async function runTool(){
   recordToolLatency(tool, ms);
   document.getElementById('execStatus').innerHTML = `<span class='ok'>Success</span> (${ms} ms)`;
     const codeEl = document.getElementById('resultCode');
-    codeEl.textContent = JSON.stringify(r, null, 2);
+    if(tool === 'code_gen' && r && r.result && r.result.code){
+      const lang = (r.result.language || 'plaintext').toLowerCase();
+      codeEl.className = 'language-' + lang;
+      codeEl.textContent = r.result.code;
+    } else {
+      codeEl.className = 'language-javascript';
+      codeEl.textContent = JSON.stringify(r, null, 2);
+    }
     Prism.highlightElement(codeEl);
   } catch(e){
     document.getElementById('execStatus').innerHTML = `<span class='err'>Error: ${e.message}</span>`;
@@ -332,6 +360,43 @@ drawLatency();
 loadParams();
 
 loadHealth();
+
+// ---- Prompt Suggestions ----
+const suggestionSets = {
+  code_gen: [
+    {label:'Rust FizzBuzz', params:{prompt:'Write FizzBuzz in Rust with iterators'}},
+    {label:'Python FastAPI health', params:{prompt:'Create a minimal FastAPI app with /health endpoint'}},
+    {label:'JavaScript debounce', params:{prompt:'Implement a debounce utility in modern JavaScript'}},
+    {label:'SQL example', params:{prompt:'Generate SQL DDL for a users table with indexes'}},
+  ],
+  validate: [
+    {label:'Get validation number', params:{}},
+  ]
+};
+
+function renderSuggestions(tool){
+  const wrap = document.getElementById('suggestions');
+  const chips = document.getElementById('suggestionChips');
+  chips.innerHTML='';
+  if(!tool || !suggestionSets[tool]){ wrap.setAttribute('data-hidden',''); return; }
+  suggestionSets[tool].forEach(s=>{
+    const btn = document.createElement('button');
+    btn.type='button';
+    btn.className='secondary';
+    btn.style.fontSize='0.65rem';
+    btn.textContent=s.label;
+    btn.addEventListener('click', ()=>{
+      if(tool==='code_gen'){
+        document.getElementById('params').value = JSON.stringify(s.params, null, 2);
+      } else if(tool==='validate'){
+        document.getElementById('params').value = JSON.stringify(s.params, null, 2);
+      }
+      localStorage.setItem(paramKey, document.getElementById('params').value);
+    });
+    chips.appendChild(btn);
+  });
+  wrap.removeAttribute('data-hidden');
+}
 </script>
 </body>
 </html>

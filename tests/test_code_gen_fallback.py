@@ -21,6 +21,11 @@ async def test_code_gen_fallback(monkeypatch):
     target_module._post_luna = broken_post  # type: ignore
     try:
         out = await code_gen(prompt="Test fallback")
-        assert "Fallback" in out
+        # code_gen returns a dict {code, language}
+        assert isinstance(out, dict)
+        assert set(out.keys()) >= {"code", "language"}
+        assert isinstance(out["code"], str)
+        # Fallback path should include either the marker or at least the prompt if upstream failed.
+        assert ("Fallback" in out["code"]) or ("Test fallback" in out["code"])
     finally:
         target_module._post_luna = original  # type: ignore

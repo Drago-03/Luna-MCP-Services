@@ -164,8 +164,12 @@ Services:
 
 ## Adding a New Tool
 
-1. Open `mcp-bearer-token/luna_mcp.py`
-2. Define an async function and decorate:
+Steps:
+
+1. Open `mcp-bearer-token/luna_mcp.py`.
+2. Define an async function and decorate it with `@tool`.
+
+Example:
 
 ```python
 @tool("echo", "Echo back a message")
@@ -173,7 +177,11 @@ async def echo(message: str) -> dict:
 	return {"echo": message}
 ```
 
-1. Return JSON-serializable data only.
+Guidelines:
+
+- Return JSON-serializable data only.
+- Keep execution under a few seconds for good UX.
+- Avoid side-effects in tools you expose publicly.
 
 ---
 
@@ -233,14 +241,14 @@ Sample `vercel.json` (add to repo root):
 
 ```json
 {
-	"functions": {
-		"api/index.py": { "runtime": "python3.11" }
-	},
-	"routes": [
-		{ "src": "/mcp", "dest": "/api/index.py" },
-		{ "src": "/public/(.*)", "dest": "/api/index.py" },
-		{ "src": "/(.*)", "dest": "/public/index.html" }
-	]
+"functions": {
+"api/index.py": { "runtime": "python3.11" }
+},
+"routes": [
+{ "src": "/mcp", "dest": "/api/index.py" },
+{ "src": "/public/(.*)", "dest": "/api/index.py" },
+{ "src": "/(.*)", "dest": "/public/index.html" }
+]
 }
 ```
 

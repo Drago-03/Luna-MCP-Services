@@ -2,7 +2,6 @@ from pathlib import Path
 
 from mcp_bearer_token import TOOL_REGISTRY
 import pytest
-import asyncio
 
 
 @pytest.mark.asyncio

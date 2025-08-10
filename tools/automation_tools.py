@@ -7,6 +7,7 @@ import httpx
 
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
 
+
 async def _run(cmd: list[str], cwd: str | None = None, timeout: int = 900) -> tuple[int, str]:
     proc = await asyncio.create_subprocess_exec(
         *cmd,
@@ -21,6 +22,7 @@ async def _run(cmd: list[str], cwd: str | None = None, timeout: int = 900) -> tu
         raise RuntimeError(f"Timeout running: {' '.join(cmd)}")
     return proc.returncode, out.decode(errors="replace")
 
+
 async def run_pytest() -> Dict[str, Any]:
     if not any(os.path.exists(p) for p in ("tests", "test")):
         return {"skipped": True, "reason": "No tests directory."}
@@ -29,16 +31,26 @@ async def run_pytest() -> Dict[str, Any]:
     except Exception:
         return {"skipped": True, "reason": "pytest not installed (activate dev extras)."}
     code, output = await _run(["pytest", "-q"])
-    return {"exit_code": code, "summary": output.splitlines()[-10:], "truncated_output": output[-4000:]}
+    return {
+        "exit_code": code,
+        "summary": output.splitlines()[-10:],
+        "truncated_output": output[-4000:],
+    }
+
 
 async def build_docker_image(tag: str) -> Dict[str, Any]:
     code, output = await _run(["docker", "build", "-t", tag, "."])
     return {"exit_code": code, "tag": tag, "tail": output[-1200:]}
 
-async def trigger_workflow(owner: str, repo: str, workflow_file: str, ref: str, inputs: Dict[str, str]) -> Dict[str, Any]:
+
+async def trigger_workflow(
+    owner: str, repo: str, workflow_file: str, ref: str, inputs: Dict[str, str]
+) -> Dict[str, Any]:
     if not GITHUB_TOKEN:
         raise RuntimeError("GITHUB_TOKEN required for workflow dispatch.")
-    url = f"https://api.github.com/repos/{owner}/{repo}/actions/workflows/{workflow_file}/dispatches"
+    url = (
+        f"https://api.github.com/repos/{owner}/{repo}/actions/workflows/{workflow_file}/dispatches"
+    )
     headers = {"Authorization": f"Bearer {GITHUB_TOKEN}", "Accept": "application/vnd.github+json"}
     payload = {"ref": ref, "inputs": inputs}
     async with httpx.AsyncClient(timeout=30) as client:
@@ -46,6 +58,7 @@ async def trigger_workflow(owner: str, repo: str, workflow_file: str, ref: str, 
         if r.status_code not in (204, 201):
             raise RuntimeError(f"Workflow dispatch failed {r.status_code}: {r.text}")
     return {"dispatched": True, "workflow": workflow_file, "ref": ref}
+
 
 async def project_scaffold(name: str, with_tests: bool) -> Dict[str, Any]:
     if os.path.exists(name):

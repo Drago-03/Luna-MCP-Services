@@ -30,4 +30,4 @@ TIMEFORMAT='  -> elapsed %3R s'; time call git_clone '{"url":"https://github.com
 echo "[3/3] img_bw"
 TIMEFORMAT='  -> elapsed %3R s'; time call img_bw '{"image_url":"https://picsum.photos/200"}'
 
-echo "Done. Each call should be <5s wall time." 
+echo "Done. Each call should be <5s wall time."

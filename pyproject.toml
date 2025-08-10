@@ -31,16 +31,14 @@ dev = [
     "pytest-asyncio",
     "mypy",
     "ruff",
-    "pytest-cov"
+    "pytest-cov",
+    "pre-commit"
 ]
 
 [tool.ruff]
 line-length = 100
 target-version = "py311"
 
-[tool.pytest.ini_options]
-addopts = "-q --cov=mcp-bearer-token --cov=tools --cov-report=term-missing --cov-report=xml"
-asyncio_mode = "auto"
 
 [tool.mypy]
 python_version = "3.11"

@@ -41,6 +41,7 @@ def tool(name: str, desc: str):
         TOOL_REGISTRY[name] = fn
         fn.__doc__ = (fn.__doc__ or "") + f"\nMCP Tool: {name}\nDescription: {desc}"
         return fn
+
     return wrap
 
 
@@ -98,7 +99,7 @@ async def code_gen(prompt: str) -> str:
             return data["code"]
         return str(data)
     except HTTPException:
-        return f"// Fallback (upstream unavailable)\n// Prompt: {prompt}\nfn main() {{ println!(\"Hello, world!\"); }}"
+        return f'// Fallback (upstream unavailable)\n// Prompt: {prompt}\nfn main() {{ println!("Hello, world!"); }}'
 
 
 @tool("voice_speak", "Text-to-speech via Luna Services; returns base64 audio payload")

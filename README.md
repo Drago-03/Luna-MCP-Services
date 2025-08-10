@@ -20,6 +20,7 @@ Thin, production-oriented MCP (Model Context Protocol) HTTP server that:
 - Ships a developer tool suite (GitHub automation, CI triggers, scaffolding, tests, Docker build, image utilities)
 - Auth: Bearer token (strict) + optional GitHub OAuth (future-ready)
 - Deploys: local (`uvicorn`), public tunnel (`ngrok`), containerized (`docker-compose`)
+- Deploys: local (`uvicorn`), public tunnel (`ngrok`), containerized (`docker-compose`), serverless (Vercel)
 
 ---
 
@@ -54,6 +55,9 @@ Thin, production-oriented MCP (Model Context Protocol) HTTP server that:
 | `GITHUB_TOKEN` | Conditional | Needed for write GitHub APIs & CI triggers |
 | `SUPABASE_URL` / `SUPABASE_KEY` | Optional | Passed through for Luna Services usage |
 | `NGROK_TOKEN` | Recommended | For public tunneling via docker-compose ngrok service |
+| `PUBLIC_TOOLS` | Optional | Comma list of tools exposed at `/public/execute` (default `code_gen,validate`) |
+| `PUBLIC_BASE_URL` | Optional | External base URL used in OAuth metadata |
+| `OAUTH_SIGNING_KEY` | Optional | HMAC secret for signing short-lived auth tokens |
 
 Sample file: `.env.example`
 
@@ -142,6 +146,75 @@ async def echo(message: str) -> dict:
 	- Future: OAuth exchange (placeholder in `github_oauth/oauth_config.py`)
 
 Unauthorized calls → HTTP 401 (not JSON-RPC envelope).
+
+### Public Facade
+
+Unauthenticated endpoints:
+
+- `GET /public/health` – minimal status + public tool list
+- `GET /public/tools` – list public tools
+- `POST /public/execute` – invoke allow‑listed tool (sanitized output)
+
+Configure with `PUBLIC_TOOLS` env var (comma separated). Keep this list restricted to idempotent, non-sensitive tools.
+
+### OAuth (Experimental Placeholder)
+
+Endpoints provided for future full auth code flow:
+
+- `/.well-known/oauth-authorization-server`
+- `/authorize`
+- `/token`
+
+Currently they return placeholder responses. To harden:
+
+1. Generate an `OAUTH_SIGNING_KEY` (32+ random bytes).
+2. Implement user consent & redirect with `code` param in `/authorize`.
+3. Exchange `code` for JWT access token in `/token` (signed via HS256).
+
+Example minimal signing snippet (not yet wired):
+
+```python
+import jwt, time, os
+token = jwt.encode({"sub":"user123","exp":int(time.time())+900}, os.environ['OAUTH_SIGNING_KEY'], algorithm='HS256')
+```
+
+PRs welcome to complete the flow.
+
+## Vercel Deployment
+
+Vercel can serve the FastAPI app via ASGI using `vercel-python`. Quick path:
+
+1. Add a `vercel.json` with a serverless function entry.
+2. Expose `AUTH_TOKEN` (and others) as Vercel Project Environment Variables.
+3. Deploy via `vercel` CLI or Git integration.
+
+Sample `vercel.json` (add to repo root):
+
+```json
+{
+	"functions": {
+		"api/index.py": { "runtime": "python3.11" }
+	},
+	"routes": [
+		{ "src": "/mcp", "dest": "/api/index.py" },
+		{ "src": "/public/(.*)", "dest": "/api/index.py" },
+		{ "src": "/(.*)", "dest": "/public/index.html" }
+	]
+}
+```
+
+Create `api/index.py` wrapper that loads the FastAPI `app`:
+
+```python
+from mcp_bearer_token import app as _app
+from fastapi.middleware.cors import CORSMiddleware
+
+app = _app  # Vercel expects variable named app
+
+# (Optional) adjust any middleware for serverless nuances here
+```
+
+Note: For long‑running operations (e.g., git clone of large repos) serverless timeouts may apply. Consider keeping those tools disabled via `PUBLIC_TOOLS` or offloading heavy tasks.
 
 ---
 

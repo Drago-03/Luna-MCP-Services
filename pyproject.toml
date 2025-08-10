@@ -19,7 +19,8 @@ dependencies = [
     "PyGithub",
     "supabase",
     "Pillow",
-    "python-multipart"
+    "python-multipart",
+    "PyJWT",
 ]
 
 [tool.hatch.build.targets.wheel]

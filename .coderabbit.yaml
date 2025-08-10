@@ -1,0 +1,23 @@
+# CodeRabbit configuration
+version: 1
+reviewer:
+  enable_auto_review: true
+  max_review_comments: 100
+  paths:
+    include:
+      - "*.py"
+      - "*.md"
+      - "pyproject.toml"
+      - "Dockerfile"
+      - "**/ci.yml"
+  rules:
+    - name: Python style
+      requires:
+        - ruff
+    - name: Type hints present
+      requires:
+        - mypy
+notifications:
+  on_review:
+    enabled: true
+    channels: ["github"]

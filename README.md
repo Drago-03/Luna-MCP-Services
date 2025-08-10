@@ -44,6 +44,40 @@ Thin, production-oriented MCP (Model Context Protocol) HTTP server that:
 | `commit_file`     | GitHub    | Create/update file (base64 content) |
 | `open_pr`         | GitHub    | Open pull request |
 | `list_issues`     | GitHub    | Enumerate open issues |
+| `validate`        | Local     | Return server validation number |
+
+### Streaming Support
+
+`code_gen` now supports simulated streaming via Server-Sent Events (SSE). While upstream model
+tokens are currently buffered server-side, the server slices and emits chunks incrementally for
+responsive clients.
+
+SSE endpoint:
+
+```text
+GET /public/stream?method=code_gen&prompt=Write%20a%20Python%20CLI
+```
+
+Events:
+
+- `start` – initial metadata
+- (default) – chunk messages: `{ "chunk": "..." }`
+- `end` – completion marker `{ "ok": true }`
+- `error` – `{ "error": "..." }`
+
+Example curl consumption:
+
+```bash
+curl -N 'https://<host>/public/stream?method=code_gen&prompt=FizzBuzz%20in%20Rust'
+```
+
+Client JS example:
+
+```js
+const es = new EventSource('/public/stream?method=code_gen&prompt=FizzBuzz');
+es.onmessage = e => { const {chunk} = JSON.parse(e.data); if(chunk) append(chunk); };
+es.addEventListener('end', ()=> es.close());
+```
 
 > Acceptance test only depends on: `code_gen`, `git_clone`, `img_bw`
 
@@ -104,6 +138,7 @@ Once ngrok URL is live (e.g. `https://abc123.ngrok-free.app`):
 ```
 
 Test tools:
+
 ```bash
 /mcp call code_gen '{"prompt":"Write hello world in Rust"}'
 /mcp call git_clone '{"url":"https://github.com/tensorflow/tensorflow"}'
@@ -158,6 +193,8 @@ Unauthenticated endpoints:
 - `GET /public/health` – minimal status + public tool list
 - `GET /public/tools` – list public tools
 - `POST /public/execute` – invoke allow‑listed tool (sanitized output)
+- `GET /public/stream` – SSE stream wrapper (chunked output for streaming-capable tools)
+- `GET /public/metrics` – aggregated latency metrics (avg, p95) per tool
 
 Configure with `PUBLIC_TOOLS` env var (comma separated). Keep this list restricted to idempotent, non-sensitive tools.
 
@@ -220,6 +257,27 @@ app = _app  # Vercel expects variable named app
 
 Note: For long‑running operations (e.g., git clone of large repos) serverless timeouts may apply. Consider keeping those tools disabled via `PUBLIC_TOOLS` or offloading heavy tasks.
 
+### 405 Method Not Allowed (Troubleshooting MCP Connect)
+
+If you receive HTTP 405 when connecting a MCP client:
+
+1. Ensure endpoint URL includes `/mcp` (not root).
+2. Confirm POST is allowed by making a manual request:
+
+```bash
+curl -i -X POST https://<your-host>/mcp -H 'Authorization: Bearer <token>' -d '{"jsonrpc":"2.0","id":1,"method":"validate","params":{}}'
+```
+
+1. GET `/mcp` should return discovery JSON (unauthenticated) confirming the route.
+2. If deploying on Vercel, verify `vercel.json` routes include `"^/(mcp|... )$"` mapping to your function.
+
+Checklist:
+
+- [ ] `/mcp` path present
+- [ ] POST supported
+- [ ] Auth header present
+- [ ] No extra path prefix (e.g. `/api/mcp` unless client configured)
+
 ---
 
 ## Test / Reliability Notes
@@ -275,6 +333,7 @@ bash quickstart.sh
 /mcp call code_gen '{"prompt":"Write hello world in Rust"}'
 /mcp call git_clone '{"url":"https://github.com/tensorflow/tensorflow"}'
 /mcp call img_bw '{"image_url":"https://picsum.photos/300"}'
+/mcp call validate '{}'
 ./acceptance_test.sh https://<ngrok>.ngrok-free.app my_secret
 ```
 

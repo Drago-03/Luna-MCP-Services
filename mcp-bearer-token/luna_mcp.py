@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import os
 import json
-from typing import Any, Awaitable, Callable, Dict, AsyncGenerator
+import re
+import time
+from collections import defaultdict, deque
+from statistics import mean
+from typing import Any, Awaitable, Callable, Dict, AsyncGenerator, Deque, List
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request
@@ -54,6 +58,11 @@ if os.path.isdir("public"):
 
 ToolFunc = Callable[..., Awaitable[Any]]
 TOOL_REGISTRY: Dict[str, ToolFunc] = {}
+LATENCY_HISTORY: Dict[str, Deque[float]] = defaultdict(lambda: deque(maxlen=500))
+
+
+def record_latency(name: str, start: float):
+    LATENCY_HISTORY[name].append((time.perf_counter() - start) * 1000.0)
 
 
 def tool(name: str, desc: str):
@@ -81,7 +90,9 @@ async def mcp_endpoint(body: Dict[str, Any], request: Request):
         raise HTTPException(status_code=404, detail="tool_not_found")
     fn = TOOL_REGISTRY[method]
     try:
+        t0 = time.perf_counter()
         result = await fn(**params)
+        record_latency(method, t0)
     except TypeError as te:
         raise HTTPException(status_code=400, detail=f"Parameter error: {te}")
     except HTTPException:
@@ -155,7 +166,9 @@ async def public_execute(body: Dict[str, Any]):
     if not fn:
         raise HTTPException(status_code=404, detail="tool_not_found")
     try:
+        t0 = time.perf_counter()
         result = await fn(**params)
+        record_latency(method, t0)
     except TypeError as te:  # parameter mismatch
         raise HTTPException(status_code=400, detail=f"parameter_error: {te}") from te
     except Exception as e:  # noqa: BLE001
@@ -201,7 +214,24 @@ async def public_stream(method: str, params: str | None = None, prompt: str | No
         # Start event
         yield b"event: start\n" + f"data: {{\"method\": \"{method}\"}}\n\n".encode()
         try:
-            result = await fn(**param_dict)
+            t0 = time.perf_counter()
+            # If the tool is streaming capable (exposes _stream attr), iterate
+            stream_attr = getattr(fn, "_stream", None)
+            if callable(stream_attr):
+                acc = []
+                stream_iter = stream_attr(**param_dict)
+                try:
+                    async for token in stream_iter:  # type: ignore[assignment]
+                        acc.append(token)
+                        payload = json.dumps({"chunk": token})
+                        yield b"data: " + payload.encode() + b"\n\n"
+                except TypeError:
+                    # Not actually async iterable, fallback to direct call
+                    acc.append(await fn(**param_dict))
+                result = "".join(str(x) for x in acc)
+            else:
+                result = await fn(**param_dict)
+            record_latency(method, t0)
         except TypeError as te:
             yield b"event: error\n" + f"data: {{\"error\": \"parameter_error: {str(te).replace('\\', '')}\"}}\n\n".encode()
             return
@@ -229,6 +259,24 @@ async def public_stream(method: str, params: str | None = None, prompt: str | No
         "X-Accel-Buffering": "no",  # nginx / proxies
     }
     return StreamingResponse(generate(), media_type="text/event-stream", headers=headers)
+
+
+@app.get("/public/metrics")
+async def public_metrics():
+    """Return aggregate latency metrics per tool (avg, p95, count)."""
+    out: Dict[str, Dict[str, float | int]] = {}
+    for tool, hist in LATENCY_HISTORY.items():
+        if not hist:
+            continue
+        arr: List[float] = list(hist)
+        arr_sorted = sorted(arr)
+        p95 = arr_sorted[min(len(arr_sorted) - 1, int(0.95 * len(arr_sorted)))]
+        out[tool] = {
+            "count": len(arr),
+            "avg_ms": round(mean(arr), 2),
+            "p95_ms": round(p95, 2),
+        }
+    return {"ok": True, "metrics": out}
 
 
 @app.get("/")
@@ -259,20 +307,72 @@ async def _post_luna(path: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         raise HTTPException(status_code=502, detail="Invalid JSON from upstream") from e
 
 
-@tool("code_gen", "Generate code through Luna Services Gemini pipeline with graceful fallback")
-async def code_gen(prompt: str) -> str:
+RUST_HINT = re.compile(r"fn\s+main\s*\(|Cargo.toml", re.IGNORECASE)
+PY_HINT = re.compile(r"def\s+\w+\s*\(|import\s+\w+", re.IGNORECASE)
+JS_HINT = re.compile(r"function\s+\w+\s*\(|console\.log", re.IGNORECASE)
+
+
+def _detect_lang(code: str) -> str:
+    if RUST_HINT.search(code):
+        return "rust"
+    if PY_HINT.search(code):
+        return "python"
+    if JS_HINT.search(code):
+        return "javascript"
+    if code.strip().startswith("<!DOCTYPE html"):
+        return "html"
+    if code.strip().startswith("#include "):
+        return "cpp"
+    return "plaintext"
+
+
+@tool("code_gen", "Generate code through Luna Services Gemini pipeline with graceful fallback (stream aware)")
+async def code_gen(prompt: str) -> Dict[str, Any]:
+    """Return generated code and detected language.
+
+    Normal response shape:
+      {"code": "...", "language": "python|rust|javascript|..."}
+    Fallback always returns deterministic Rust snippet.
+    """
     try:
         data = await _post_luna("/api/ai/code", {"prompt": prompt})
-        if "code" in data:
-            return data["code"]
-        return str(data)
+        code = data.get("code") if isinstance(data, dict) else None
+        if not code:
+            code = str(data)
     except Exception:  # noqa: BLE001
-        # Always provide deterministic fallback instead of surfacing 5xx
-        return (
+        code = (
             "// Fallback (generation unavailable)\n"
             f"// Prompt: {prompt}\n"
             "fn main() { println!(\"Hello, world!\"); }"
         )
+    return {"code": code, "language": _detect_lang(code)}
+
+
+class _CodeGenStreamer:
+    def __init__(self, prompt: str):
+        self.prompt = prompt
+        self._chunks: List[str] | None = None
+        self._index = 0
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):  # type: ignore[override]
+        if self._chunks is None:
+            result = await code_gen(prompt=self.prompt)  # call once
+            code = result.get("code", "") if isinstance(result, dict) else str(result)
+            size = 80
+            self._chunks = [code[i : i + size] for i in range(0, len(code), size)] or [""]
+        if self._index >= len(self._chunks):
+            raise StopAsyncIteration
+        chunk = self._chunks[self._index]
+        self._index += 1
+        return chunk
+
+def code_gen_stream_factory(**kwargs):  # type: ignore[override]
+    return _CodeGenStreamer(prompt=kwargs.get("prompt", ""))
+
+setattr(code_gen, "_stream", code_gen_stream_factory)
 
 
 @tool("voice_speak", "Text-to-speech via Luna Services; returns base64 audio payload")

@@ -16,11 +16,4 @@ services:
       "
     ports:
       - "8086:8086"
-
-  ngrok:
-    image: wernight/ngrok
-    depends_on:
-      - mcp
-    environment:
-      NGROK_AUTHTOKEN: ${NGROK_TOKEN}
-    command: http mcp:8086
+  # ngrok service removed (Render / other hosting provides public URL). Add back if needed for quick tunnels.

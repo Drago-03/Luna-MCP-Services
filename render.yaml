@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: luna-mcp
+    env: docker
+    plan: free
+    autoDeploy: true
+    buildCommand: ''  # Dockerfile handles build
+    healthCheckPath: /healthz
+    # Optional: specify region (uncomment if desired)
+    # region: oregon
+    envVars:
+      - key: AUTH_TOKEN
+        sync: false  # Set via Render dashboard/CLI (required)
+      - key: PUBLIC_TOOLS
+        value: code_gen,validate
+      - key: LUNA_URL
+        value: http://localhost:8000
+      - key: GITHUB_TOKEN
+        sync: false  # Only if using GitHub automation tools
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+      - key: PUBLIC_BASE_URL
+        sync: false  # Set to https://<your-service>.onrender.com for OAuth metadata

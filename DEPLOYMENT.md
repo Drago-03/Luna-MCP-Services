@@ -34,7 +34,7 @@ To integrate Luna-MCP-Services with Puch AI, you must deploy a live MCP server e
 ### Deployment Steps
 
 1. **Deploy Your MCP Server**
-   Use Docker (provided `Dockerfile`) or a platform buildpack. Ensure the main MCP endpoint is publicly accessible (e.g., `https://your-domain.com/mcp`).
+   Preferred: Render (managed container) using included `render.yaml` or direct Docker deploy. Alternative platforms (Fly.io, Railway, Vercel) remain compatible.
 2. **Expose the MCP Endpoint**
    The `/mcp` path must accept JSON-RPC 2.0 requests and respond with MCP-compliant results.
 3. **Implement the `validate` Tool**
@@ -96,15 +96,45 @@ To integrate Luna-MCP-Services with Puch AI, you must deploy a live MCP server e
 
 ---
 
-### Free Hosting Options
+### Recommended: Render Deployment
 
-| Platform | Notes | Command Sketch |
-|----------|-------|----------------|
-| Fly.io | App + volume + free TLS | `fly launch` → `fly deploy` |
-| Render | Web service (Docker) | Connect repo, set start command |
-| Railway | One-click, ephemeral | Add ENV vars, deploy automatically |
-| Deta Space | Micro for FastAPI | Package and push via Space CLI |
-| Hugging Face Spaces | Good for demos | Add `app.py` if needed; uses gunicorn |
+Two paths:
+
+1. Dashboard: New > Web Service → Select repo → Environment: Docker → Expose port 8086 → Set env vars → Create.
+2. Blueprint: Keep `render.yaml` in repo root → Use Render "Deploy Blueprint" → Select repo → Launch.
+
+Key env vars:
+
+| Key | Required | Example |
+|-----|----------|---------|
+| AUTH_TOKEN | Yes | supersecret123 |
+| PUBLIC_TOOLS | No | code_gen,validate |
+| LUNA_URL | No | https://luna-services.yourdomain.tld |
+| GITHUB_TOKEN | Conditional | (for GitHub tools) |
+
+Health check path in `render.yaml` is `/healthz`.
+
+Once live, your base URL is `https://<service>.onrender.com`.
+
+Test:
+
+```bash
+curl https://<service>.onrender.com/healthz
+curl -X POST https://<service>.onrender.com/mcp \
+   -H "Authorization: Bearer $AUTH_TOKEN" \
+   -H 'Content-Type: application/json' \
+   -d '{"jsonrpc":"2.0","id":1,"method":"validate","params":{}}'
+```
+
+### Other Hosting Options (Optional)
+
+| Platform | Notes |
+|----------|-------|
+| Fly.io | `fly launch` + `fly deploy`; map internal 8086 |
+| Vercel | Already documented in README (serverless) |
+| Railway | Similar to Render (Docker) |
+| Deta Space | Package as standard FastAPI micro |
+| Hugging Face Spaces | Convert to `app.py` + `requirements.txt` |
 
 ---
 

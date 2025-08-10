@@ -1,0 +1,26 @@
+version: "3.9"
+
+services:
+  mcp:
+    build: .
+    container_name: luna-mcp
+    env_file: .env
+    working_dir: /app
+    volumes:
+      - ./:/app
+    command: >
+      sh -c "
+        if ! command -v uv >/dev/null 2>&1; then pip install --no-cache-dir uv; fi &&
+        uv sync &&
+        uvicorn mcp-bearer-token.luna_mcp:app --host 0.0.0.0 --port 8086
+      "
+    ports:
+      - "8086:8086"
+
+  ngrok:
+    image: wernight/ngrok
+    depends_on:
+      - mcp
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_TOKEN}
+    command: http mcp:8086

@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-test-lint:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install uv
+        run: pip install --upgrade uv
+
+      - name: Sync dependencies
+        run: |
+          uv sync
+          pip install '.[dev]'
+
+      - name: Ruff Lint
+        run: ruff check .
+
+      - name: Type Check (mypy)
+        run: mypy . || true
+
+      - name: Pytest (unit only, skip network)
+        run: pytest -q -m "not network"
+
+      - name: Coverage XML present
+        if: always()
+        run: ls -1 coverage.xml || echo "No coverage.xml generated"
+
+      - name: Upload coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-xml
+          path: coverage.xml
+
+      - name: Build Docker Image
+        run: docker build -t luna-mcp:ci .
+
+      - name: Trivy Scan (Image)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'luna-mcp:ci'
+          format: 'table'
+          vuln-type: 'os,library'
+          ignore-unfixed: true
+          severity: 'CRITICAL,HIGH'
+        continue-on-error: true
+
+      - name: Trivy FS (Repository)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          format: 'table'
+          ignore-unfixed: true
+          severity: 'CRITICAL,HIGH'
+        continue-on-error: true
+
+      - name: Summary
+        run: echo "CI pipeline completed."

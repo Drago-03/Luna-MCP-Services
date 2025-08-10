@@ -1,7 +1,4 @@
 {
-  "functions": {
-    "api/**/*.py": { "runtime": "python3.11" }
-  },
   "routes": [
     { "src": "/mcp", "dest": "/api/index.py" },
     { "src": "/public/(.*)", "dest": "/api/index.py" },

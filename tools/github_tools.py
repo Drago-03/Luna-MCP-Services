@@ -10,6 +10,7 @@ GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
 
 _client: Github | None = None
 
+
 def _client_lazy() -> Github:
     global _client
     if _client is None:
@@ -18,6 +19,7 @@ def _client_lazy() -> Github:
         else:
             _client = Github(per_page=100)
     return _client
+
 
 async def _run_cmd(cmd: List[str], cwd: str | None = None, timeout: int = 600) -> str:
     proc = await asyncio.create_subprocess_exec(
@@ -35,6 +37,7 @@ async def _run_cmd(cmd: List[str], cwd: str | None = None, timeout: int = 600) -
         raise RuntimeError(f"Command failed ({proc.returncode}): {out.decode(errors='replace')}")
     return out.decode(errors="replace")
 
+
 async def clone_repo(url: str) -> str:
     """Perform shallow + blobless clone for speed."""
     repos_dir = os.path.abspath("repos")
@@ -46,6 +49,7 @@ async def clone_repo(url: str) -> str:
     await _run_cmd(["git", "clone", "--depth", "1", "--filter=blob:none", url, dest])
     return dest
 
+
 async def create_branch(owner: str, repo: str, base: str, new_branch: str) -> Dict[str, Any]:
     gh = _client_lazy()
     r = gh.get_repo(f"{owner}/{repo}")
@@ -56,7 +60,10 @@ async def create_branch(owner: str, repo: str, base: str, new_branch: str) -> Di
         raise RuntimeError(f"create_branch failed: {e.data}") from e
     return {"branch": new_branch}
 
-async def commit_file(owner: str, repo: str, branch: str, path: str, content_b64: str, message: str) -> Dict[str, Any]:
+
+async def commit_file(
+    owner: str, repo: str, branch: str, path: str, content_b64: str, message: str
+) -> Dict[str, Any]:
     gh = _client_lazy()
     r = gh.get_repo(f"{owner}/{repo}")
     try:
@@ -72,11 +79,15 @@ async def commit_file(owner: str, repo: str, branch: str, path: str, content_b64
         status = "created"
     return {"status": status, "path": path, "branch": branch}
 
-async def open_pr(owner: str, repo: str, head: str, base: str, title: str, body: str) -> Dict[str, Any]:
+
+async def open_pr(
+    owner: str, repo: str, head: str, base: str, title: str, body: str
+) -> Dict[str, Any]:
     gh = _client_lazy()
     r = gh.get_repo(f"{owner}/{repo}")
     pr = r.create_pull(title=title, body=body, head=head, base=base)
     return {"number": pr.number, "url": pr.html_url, "title": pr.title}
+
 
 async def list_issues(owner: str, repo: str, limit: int) -> Dict[str, Any]:
     gh = _client_lazy()
@@ -86,10 +97,12 @@ async def list_issues(owner: str, repo: str, limit: int) -> Dict[str, Any]:
     for idx, issue in enumerate(issues):
         if idx >= limit:
             break
-        out.append({
-            "number": issue.number,
-            "title": issue.title,
-            "url": issue.html_url,
-            "labels": [label.name for label in issue.get_labels()],
-        })
+        out.append(
+            {
+                "number": issue.number,
+                "title": issue.title,
+                "url": issue.html_url,
+                "labels": [label.name for label in issue.get_labels()],
+            }
+        )
     return {"issues": out}

@@ -25,7 +25,7 @@ if [ ! -f .env ]; then
 fi
 
 echo "[5/6] Launching server on :8086 ..."
-(uvicorn mcp-bearer-token.luna_mcp:app --host 0.0.0.0 --port 8086 >/dev/null 2>&1 &) 
+(uvicorn mcp-bearer-token.luna_mcp:app --host 0.0.0.0 --port 8086 >/dev/null 2>&1 &)
 sleep 2
 
 echo "[6/6] Starting ngrok tunnel (if installed)..."

@@ -5,15 +5,15 @@
 ```markdown
 # Architecture – Luna MCP Server
 
-Team: **Indie Hub** • Member: **Mantej Singh**  
+Team: **Indie Hub** • Member: **Mantej Singh**
 Server: **Luna MCP Server**
 
 ---
 
 ## 1. High-Level Overview
 
-A minimal FastAPI application exposes a single `/mcp` endpoint accepting JSON-RPC 2.0 requests over HTTPS.  
-Tools are dynamically registered via a decorator and dispatched by name.  
+A minimal FastAPI application exposes a single `/mcp` endpoint accepting JSON-RPC 2.0 requests over HTTPS.
+Tools are dynamically registered via a decorator and dispatched by name.
 Complex AI operations are proxied to **Luna Services** while developer utilities execute locally.
 
 ---
@@ -98,16 +98,16 @@ sequenceDiagram
 
 ## 6. Auth Model
 
-1. **Bearer Token**  
-   - Provided by user in `.env` as `AUTH_TOKEN`  
-   - Checked per request (exact string match).  
-2. **GitHub PAT (`GITHUB_TOKEN`)**  
-   - Required for mutating GitHub operations and workflow dispatch.  
-3. **Optional OAuth (future)**  
-   - Pre-configured endpoints outlined in `github_oauth/oauth_config.py`.  
-4. **Failure Behavior**  
-   - Missing/incorrect token → HTTP 401 (not a JSON-RPC error envelope).  
-   - Unknown tool → HTTP 404.  
+1. **Bearer Token**
+   - Provided by user in `.env` as `AUTH_TOKEN`
+   - Checked per request (exact string match).
+2. **GitHub PAT (`GITHUB_TOKEN`)**
+   - Required for mutating GitHub operations and workflow dispatch.
+3. **Optional OAuth (future)**
+   - Pre-configured endpoints outlined in `github_oauth/oauth_config.py`.
+4. **Failure Behavior**
+   - Missing/incorrect token → HTTP 401 (not a JSON-RPC error envelope).
+   - Unknown tool → HTTP 404.
 
 ---
 

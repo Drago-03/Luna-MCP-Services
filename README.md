@@ -7,7 +7,7 @@
 [![pre-commit.ci status](https://results.pre-commit.ci/badge/github/Drago-03/Luna-MCP-Services/main.svg)](https://results.pre-commit.ci/latest/github/Drago-03/Luna-MCP-Services/main)
 [![codecov](https://codecov.io/github/Drago-03/Luna-MCP-Services/graph/badge.svg?token=17EXUB01OW)](https://codecov.io/github/Drago-03/Luna-MCP-Services)
 
-> Indie Hub submission for the **Puch AI Hackathon**  
+> Indie Hub submission for the **Puch AI Hackathon**
 > Team: **Indie Hub** • Member: **Mantej Singh** • Server: **Luna MCP Server**
 
 ![Logo](public/assets/logo.png)

@@ -99,7 +99,7 @@ async def code_gen(prompt: str) -> str:
             return data["code"]
         return str(data)
     except HTTPException:
-        return f"// Fallback (upstream unavailable)\n// Prompt: {prompt}\nfn main() {{ println!(\"Hello, world!\"); }}"
+        return f'// Fallback (upstream unavailable)\n// Prompt: {prompt}\nfn main() {{ println!("Hello, world!"); }}'
 
 
 @tool("voice_speak", "Text-to-speech via Luna Services; returns base64 audio payload")

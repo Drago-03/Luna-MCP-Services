@@ -1,0 +1,10 @@
+fastapi==0.110.*
+uvicorn[standard]
+python-dotenv
+pydantic>=2
+httpx
+PyGithub
+supabase
+Pillow
+python-multipart
+PyJWT

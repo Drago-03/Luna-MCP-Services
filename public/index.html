@@ -5,7 +5,13 @@
   <title>Luna MCP Public Console</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
-    body { font-family: system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,sans-serif; margin: 0; padding: 1.5rem; background:#0d1117; color:#e6edf3; }
+  :root { color-scheme: dark; }
+  body { font-family: system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,sans-serif; margin: 0; padding: 1.5rem; background:#0d1117; color:#e6edf3; transition: background .3s, color .3s; }
+  body.light { background:#ffffff; color:#24292f; }
+  body.light section { background:#f6f8fa; border-color:#d0d7de; }
+  body.light input,body.light textarea,body.light select { background:#ffffff; color:#24292f; border-color:#d0d7de; }
+  body.light pre { background:#fff; border-color:#d0d7de; }
+  body.light .badge { background:#d0d7de; }
     h1 { margin-top:0; }
     .grid { display:grid; gap:1rem; grid-template-columns: repeat(auto-fit,minmax(260px,1fr)); }
     section { background:#161b22; padding:1rem 1.2rem; border:1px solid #30363d; border-radius:8px; }
@@ -22,6 +28,10 @@
   footer { margin-top:2rem; font-size:0.75rem; opacity:.6; }
   a.link { color:#58a6ff; text-decoration:none; }
   a.link:hover { text-decoration:underline; }
+  .bar { display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap; }
+  .chart { width:100%;max-width:420px; }
+  .mt1 { margin-top:1rem; }
+  .sse-log { max-height:160px; }
     .flex { display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; }
   </style>
 </head>
@@ -30,11 +40,17 @@
   <p class="lead">Explore a curated, sandboxed set of tools exposed by the Luna MCP server. All responses are sanitized. No token required for these endpoints.</p>
   <div id="health" class="status" role="status" aria-live="polite">Loading health…</div>
 
-  <nav class="tabs" role="tablist" aria-label="Console Sections">
+  <div class="bar">
+    <nav class="tabs" role="tablist" aria-label="Console Sections">
     <button class="tab active" data-tab="run" role="tab" aria-selected="true">Run Tool</button>
     <button class="tab" data-tab="docs" role="tab" aria-selected="false">Tool Docs</button>
     <button class="tab" data-tab="validate" role="tab" aria-selected="false">Validate</button>
-  </nav>
+    </nav>
+    <div class="flex">
+      <button class="secondary" id="themeToggle" type="button" aria-pressed="false">🌙 Dark</button>
+      <button class="secondary" id="resetHist" type="button">Reset Stats</button>
+    </div>
+  </div>
 
   <section class="panel active" id="panel-run" role="tabpanel" aria-labelledby="tab-run">
     <h2>Execute Tool</h2>
@@ -50,6 +66,14 @@
     </div>
     <div id="execStatus" class="status" aria-live="polite"></div>
     <pre id="result" aria-label="Result output" tabindex="0"></pre>
+    <h3>Latency Histogram (ms)</h3>
+  <canvas id="latencyChart" height="120" class="chart"></canvas>
+  <details class="mt1"><summary>SSE Stream (experimental)</summary>
+      <p>When future streaming tools are available, output will appear below.</p>
+  <pre id="sseOut" class="sse-log"></pre>
+      <button class="secondary" id="sseStart" type="button">Start Stream</button>
+      <button class="secondary" id="sseStop" type="button" disabled>Stop</button>
+    </details>
   </section>
 
   <section class="panel" id="panel-docs" role="tabpanel" aria-labelledby="tab-docs">
@@ -91,7 +115,7 @@ async function selectTool(name){
   try {
     const d = await fetchJSON(`/public/describe/${encodeURIComponent(name)}`);
     help.innerHTML = `<span class='ok'>${d.tool}</span>: ${d.description}`;
-    docs.innerHTML = `<h3 style='margin-top:0'>${d.tool}</h3><p>${d.description}</p><p><strong>Invoke:</strong> POST /public/execute {"method":"${d.tool}","params":{}}</p>`;
+  docs.innerHTML = `<h3 style='margin-top:0'>${d.tool}</h3><p>${d.description}</p><p><strong>Invoke:</strong> POST /public/execute {"method":"${d.tool}","params":{}}</p>`;
   } catch(e){
     help.innerHTML = `<span class='err'>Description error: ${e.message}</span>`;
   }
@@ -113,8 +137,9 @@ async function runTool(){
   const start = performance.now();
   try {
     const r = await fetchJSON('/public/execute', {method:'POST', body: JSON.stringify({method: tool, params})});
-    const ms = Math.round(performance.now()-start);
-    document.getElementById('execStatus').innerHTML = `<span class='ok'>Success</span> (${ms} ms)`;
+  const ms = Math.round(performance.now()-start);
+  recordLatency(ms);
+  document.getElementById('execStatus').innerHTML = `<span class='ok'>Success</span> (${ms} ms)`;
     document.getElementById('result').textContent = JSON.stringify(r, null, 2);
   } catch(e){
     document.getElementById('execStatus').innerHTML = `<span class='err'>Error: ${e.message}</span>`;
@@ -142,6 +167,69 @@ function copyCurl(){
     s.innerHTML = `<span class='ok'>Copied curl snippet</span>`;
   }).catch(()=>{});
 }
+
+// Latency tracking
+const histKey = 'luna_mcp_latency';
+function loadLatency(){
+  try { return JSON.parse(localStorage.getItem(histKey)||'[]'); } catch { return []; }
+}
+function saveLatency(arr){ localStorage.setItem(histKey, JSON.stringify(arr.slice(-200))); }
+function recordLatency(ms){ const data = loadLatency(); data.push(ms); saveLatency(data); drawLatency(); }
+function bucketize(arr){
+  if(!arr.length) return [];
+  const max = Math.max(...arr); const step = Math.max(10, Math.ceil(max/10));
+  const buckets = [];
+  for(let edge=0; edge<=max+step; edge+=step){ buckets.push({edge, count:0}); }
+  for(const v of arr){
+    const idx = Math.min(buckets.length-1, Math.floor(v/step));
+    buckets[idx].count++;
+  }
+  return {buckets, step};
+}
+function drawLatency(){
+  const canvas = document.getElementById('latencyChart'); if(!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const data = loadLatency();
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  if(!data.length){ ctx.fillStyle = '#777'; ctx.fillText('No data yet', 10,20); return; }
+  const {buckets, step} = bucketize(data);
+  const maxCount = Math.max(...buckets.map(b=>b.count));
+  const w = canvas.width / buckets.length;
+  buckets.forEach((b,i)=>{
+    const h = (b.count / maxCount) * (canvas.height - 20);
+    ctx.fillStyle = '#238636';
+    ctx.fillRect(i*w, canvas.height - h, w-4, h);
+  });
+  ctx.fillStyle = '#999';
+  ctx.font = '10px system-ui';
+  buckets.forEach((b,i)=>{
+    ctx.fillText(`${b.edge}`, i*w+2, canvas.height-2);
+  });
+}
+
+// Theme toggle
+const themeKey='luna_mcp_theme';
+function applyTheme(){ const t = localStorage.getItem(themeKey)||'dark'; document.body.classList.toggle('light', t==='light'); document.getElementById('themeToggle').textContent = t==='light' ? '🌞 Light' : '🌙 Dark'; }
+function toggleTheme(){ const cur = localStorage.getItem(themeKey)||'dark'; const next = cur==='dark'?'light':'dark'; localStorage.setItem(themeKey,next); applyTheme(); }
+
+// Params persistence
+const paramKey='luna_mcp_params';
+function loadParams(){ const v = localStorage.getItem(paramKey); if(v) document.getElementById('params').value = v; }
+document.getElementById('params').addEventListener('input', e=> localStorage.setItem(paramKey, e.target.value));
+
+// SSE (placeholder implementation)
+let evtSource = null;
+function startSSE(){
+  // Example placeholder endpoint (not implemented server side yet)
+  const out = document.getElementById('sseOut');
+  out.textContent='(demo) No SSE endpoint implemented yet.';
+  document.getElementById('sseStart').disabled=true;
+  document.getElementById('sseStop').disabled=false;
+}
+function stopSSE(){ if(evtSource){ evtSource.close(); evtSource=null; } document.getElementById('sseStart').disabled=false; document.getElementById('sseStop').disabled=true; }
+
+document.getElementById('sseStart').addEventListener('click', startSSE);
+document.getElementById('sseStop').addEventListener('click', stopSSE);
 
 // Tabs
 document.querySelectorAll('.tab').forEach(btn=>{

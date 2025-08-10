@@ -7,7 +7,7 @@ from typing import Any, Awaitable, Callable, Dict
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
@@ -155,8 +155,11 @@ async def public_execute(body: Dict[str, Any]):
         raise HTTPException(status_code=404, detail="tool_not_found")
     try:
         result = await fn(**params)
+    except TypeError as te:  # parameter mismatch
+        raise HTTPException(status_code=400, detail=f"parameter_error: {te}") from te
     except Exception as e:  # noqa: BLE001
-        raise HTTPException(status_code=500, detail=str(e))
+        # Do not leak stack details publicly
+        raise HTTPException(status_code=500, detail="tool_execution_failed") from e
     return {"method": method, "result": _sanitize(result)}
 
 
@@ -195,8 +198,13 @@ async def code_gen(prompt: str) -> str:
         if "code" in data:
             return data["code"]
         return str(data)
-    except HTTPException:
-        return f'// Fallback (upstream unavailable)\n// Prompt: {prompt}\nfn main() {{ println!("Hello, world!"); }}'
+    except Exception:  # noqa: BLE001
+        # Always provide deterministic fallback instead of surfacing 5xx
+        return (
+            "// Fallback (generation unavailable)\n"
+            f"// Prompt: {prompt}\n"
+            "fn main() { println!(\"Hello, world!\"); }"
+        )
 
 
 @tool("voice_speak", "Text-to-speech via Luna Services; returns base64 audio payload")

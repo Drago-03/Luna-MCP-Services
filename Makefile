@@ -1,6 +1,6 @@
 # Common developer commands for Luna MCP Server
 
-.PHONY: help install lint type test format serve docker-build acceptance pre-commit
+.PHONY: help install lint type test format serve docker-build acceptance pre-commit coverage
 
 help:
 	@echo "Targets:"
@@ -9,6 +9,7 @@ help:
 	@echo "  format         Run ruff format"
 	@echo "  type           Run mypy"
 	@echo "  test           Run pytest"
+	@echo "  coverage       Run pytest with coverage (branch) + xml report"
 	@echo "  serve          Start dev server"
 	@echo "  docker-build   Build docker image"
 	@echo "  acceptance     Run acceptance test script (needs BASE_URL + TOKEN)"
@@ -29,6 +30,9 @@ type:
 
 test:
 	uv run pytest -q
+
+coverage:
+	uv run pytest --cov --cov-branch --cov-report=term-missing --cov-report=xml
 
 serve:
 	uv run uvicorn mcp-bearer-token.luna_mcp:app --host 0.0.0.0 --port 8086 --reload

@@ -39,8 +39,8 @@ jobs:
           pip install pre-commit
           pre-commit run --all-files || true
 
-      - name: Pytest (unit only, skip network)
-        run: pytest -q -m "not network"
+      - name: Pytest (unit only, skip network) with coverage + JUnit
+        run: pytest -q -m "not network" --cov --cov-branch --cov-report=term-missing --cov-report=xml --junitxml=junit.xml -o junit_family=legacy
 
       - name: Coverage XML present
         if: always()
@@ -53,13 +53,28 @@ jobs:
           name: coverage-xml
           path: coverage.xml
 
-      - name: Upload coverage to Codecov
-        if: success()
-        uses: codecov/codecov-action@v4
+      - name: Upload JUnit test results artifact
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          files: coverage.xml
-          fail_ci_if_error: false
-          verbose: false
+          name: junit-xml
+          path: junit.xml
+
+      - name: Upload coverage reports to Codecov
+        if: success()
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Upload test results to Codecov
+        if: ${{ !cancelled() }}
+        uses: codecov/test-results-action@v1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Validate Codecov config
+        if: always()
+        run: cat codecov.yml | curl --fail --data-binary @- https://codecov.io/validate
 
       - name: Build Docker Image
         run: docker build -t luna-mcp:ci .

@@ -1,10 +1,11 @@
-# Luna-MCP-Server  
+# Luna-MCP-Server
+
 [![CI](https://github.com/Drago-03/Luna-MCP-Services/actions/workflows/ci.yml/badge.svg)](https://github.com/Drago-03/Luna-MCP-Services/actions/workflows/ci.yml)
 [![Ruff](https://img.shields.io/badge/lint-ruff-blue)](https://github.com/astral-sh/ruff)
 [![mypy](https://img.shields.io/badge/types-mypy-1f5082)](https://mypy-lang.org/)
 [![Security Scan](https://img.shields.io/badge/security-trivy-green)](https://github.com/aquasecurity/trivy-action)
 [![pre-commit.ci status](https://results.pre-commit.ci/badge/github/Drago-03/Luna-MCP-Services/main.svg)](https://results.pre-commit.ci/latest/github/Drago-03/Luna-MCP-Services/main)
-[![Coverage](https://codecov.io/gh/Drago-03/Luna-MCP-Services/branch/main/graph/badge.svg)](https://codecov.io/gh/Drago-03/Luna-MCP-Services)
+[![codecov](https://codecov.io/github/Drago-03/Luna-MCP-Services/graph/badge.svg?token=17EXUB01OW)](https://codecov.io/github/Drago-03/Luna-MCP-Services)
 
 > Indie Hub submission for the **Puch AI Hackathon**  
 > Team: **Indie Hub** • Member: **Mantej Singh** • Server: **Luna MCP Server**

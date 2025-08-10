@@ -33,15 +33,15 @@ To integrate Luna-MCP-Services with Puch AI, you must deploy a live MCP server e
 
 ### Deployment Steps
 
-1. **Deploy Your MCP Server**  
+1. **Deploy Your MCP Server**
    Use Docker (provided `Dockerfile`) or a platform buildpack. Ensure the main MCP endpoint is publicly accessible (e.g., `https://your-domain.com/mcp`).
-2. **Expose the MCP Endpoint**  
+2. **Expose the MCP Endpoint**
    The `/mcp` path must accept JSON-RPC 2.0 requests and respond with MCP-compliant results.
-3. **Implement the `validate` Tool**  
+3. **Implement the `validate` Tool**
    Already provided: `validate` returns the server owner's number in `{country_code}{number}` format (e.g. `919805763104`).
-4. **Enable HTTPS**  
+4. **Enable HTTPS**
    Use a platform with automatic TLS (Fly.io / Render / Railway) or place behind a reverse proxy (Caddy / Nginx) with certificates.
-5. **(Optional) Add OAuth Endpoints**  
+5. **(Optional) Add OAuth Endpoints**
    Placeholder endpoints are included: `/.well-known/oauth-authorization-server`, `/authorize`, `/token`.
 
 ---
@@ -74,22 +74,22 @@ To integrate Luna-MCP-Services with Puch AI, you must deploy a live MCP server e
 
 ### Testing Your Deployment
 
-1. **Health:** `curl https://your-domain.com/healthz` → JSON with tool list.  
-2. **Public Health:** `curl https://your-domain.com/public/health` → subset (no auth).  
-3. **Validate Tool:**  
+1. **Health:** `curl https://your-domain.com/healthz` → JSON with tool list.
+2. **Public Health:** `curl https://your-domain.com/public/health` → subset (no auth).
+3. **Validate Tool:**
    ```bash
    curl -X POST https://your-domain.com/mcp \
      -H "Authorization: Bearer $AUTH_TOKEN" \
      -H 'Content-Type: application/json' \
      -d '{"jsonrpc":"2.0","id":1,"method":"validate","params":{}}'
    ```
-4. **Public Execute (no auth, allowlisted):**  
+4. **Public Execute (no auth, allowlisted):**
    ```bash
    curl -X POST https://your-domain.com/public/execute \
      -H 'Content-Type: application/json' \
      -d '{"method":"validate","params":{}}'
    ```
-5. **Puch AI Connect:**  
+5. **Puch AI Connect:**
    ```
    /mcp connect https://your-domain.com/mcp $AUTH_TOKEN
    ```

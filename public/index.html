@@ -19,41 +19,52 @@
     .ok { color:#2ea043; }
     .err { color:#f85149; }
     .badge { display:inline-block; padding:2px 8px; font-size:12px; background:#30363d; border-radius:999px; margin:2px; }
-    footer { margin-top:2rem; font-size:0.75rem; opacity:.6; }
+  footer { margin-top:2rem; font-size:0.75rem; opacity:.6; }
+  a.link { color:#58a6ff; text-decoration:none; }
+  a.link:hover { text-decoration:underline; }
     .flex { display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; }
   </style>
 </head>
 <body>
-  <h1>Luna MCP Public Console</h1>
-  <p>Call a curated set of public tools safely. No auth required. Outputs are sanitized to remove secrets.</p>
-  <div id="health" class="status">Loading health…</div>
+  <h1>🌓 Luna MCP Public Console</h1>
+  <p class="lead">Explore a curated, sandboxed set of tools exposed by the Luna MCP server. All responses are sanitized. No token required for these endpoints.</p>
+  <div id="health" class="status" role="status" aria-live="polite">Loading health…</div>
 
-  <div class="grid">
-    <section>
-      <h2>Execute Tool</h2>
-      <label>Tool
-        <select id="toolSelect"></select>
-      </label>
-      <label>Parameters (JSON)
-        <textarea id="params" placeholder='{"prompt":"Hello"}'></textarea>
-      </label>
-      <div class="flex">
-        <button id="runBtn">Run</button>
-        <button class="secondary" id="clearBtn" type="button">Clear</button>
-      </div>
-      <div id="execStatus" class="status"></div>
-      <pre id="result"></pre>
-    </section>
+  <nav class="tabs" role="tablist" aria-label="Console Sections">
+    <button class="tab active" data-tab="run" role="tab" aria-selected="true">Run Tool</button>
+    <button class="tab" data-tab="docs" role="tab" aria-selected="false">Tool Docs</button>
+    <button class="tab" data-tab="validate" role="tab" aria-selected="false">Validate</button>
+  </nav>
 
-    <section>
-      <h2>Validate</h2>
-      <p>Returns server validation number.</p>
-      <button id="validateBtn">Get Number</button>
-      <pre id="validateOut"></pre>
-    </section>
-  </div>
+  <section class="panel active" id="panel-run" role="tabpanel" aria-labelledby="tab-run">
+    <h2>Execute Tool</h2>
+    <label for="toolSelect">Tool</label>
+    <select id="toolSelect" aria-describedby="toolHelp"></select>
+    <div id="toolHelp" class="status">Select a tool to view description.</div>
+    <label for="params">Parameters (JSON)</label>
+    <textarea id="params" placeholder='{"prompt":"Hello"}' aria-label="Tool parameters"></textarea>
+    <div class="flex">
+      <button id="runBtn">Run</button>
+      <button class="secondary" id="clearBtn" type="button">Clear</button>
+      <button class="secondary" id="curlBtn" type="button">Copy curl</button>
+    </div>
+    <div id="execStatus" class="status" aria-live="polite"></div>
+    <pre id="result" aria-label="Result output" tabindex="0"></pre>
+  </section>
 
-  <footer>© 2025 Luna MCP • Public tools only • Source on GitHub.</footer>
+  <section class="panel" id="panel-docs" role="tabpanel" aria-labelledby="tab-docs">
+    <h2>Tool Documentation</h2>
+    <div id="toolDocs">Select a tool to load its description.</div>
+  </section>
+
+  <section class="panel" id="panel-validate" role="tabpanel" aria-labelledby="tab-validate">
+    <h2>Validate Tool</h2>
+    <p>Returns the server validation number required for some MCP integrations.</p>
+    <button id="validateBtn">Get Number</button>
+    <pre id="validateOut"></pre>
+  </section>
+
+  <footer>© 2025 Luna MCP • Public tools only • <a class="link" href="https://github.com/Drago-03/Luna-MCP-Services" target="_blank" rel="noopener">Source</a></footer>
 
 <script>
 async function fetchJSON(url, opts={}) {
@@ -67,8 +78,22 @@ async function loadHealth(){
     document.getElementById('health').innerHTML = `Status: <span class='ok'>OK</span> • Public tools: ${h.tools.map(t=>`<span class=badge>${t}</span>`).join('')}`;
     const sel = document.getElementById('toolSelect');
     sel.innerHTML = h.tools.map(t=>`<option value="${t}">${t}</option>`).join('');
+    if(h.tools.length){ selectTool(h.tools[0]); }
   } catch(e){
     document.getElementById('health').innerHTML = `<span class='err'>Health error: ${e.message}</span>`;
+  }
+}
+
+async function selectTool(name){
+  const help = document.getElementById('toolHelp');
+  const docs = document.getElementById('toolDocs');
+  help.textContent = 'Loading description…';
+  try {
+    const d = await fetchJSON(`/public/describe/${encodeURIComponent(name)}`);
+    help.innerHTML = `<span class='ok'>${d.tool}</span>: ${d.description}`;
+    docs.innerHTML = `<h3 style='margin-top:0'>${d.tool}</h3><p>${d.description}</p><p><strong>Invoke:</strong> POST /public/execute {"method":"${d.tool}","params":{}}</p>`;
+  } catch(e){
+    help.innerHTML = `<span class='err'>Description error: ${e.message}</span>`;
   }
 }
 
@@ -107,10 +132,34 @@ async function validate(){
   }
 }
 
+function copyCurl(){
+  const tool = document.getElementById('toolSelect').value;
+  let paramsRaw = document.getElementById('params').value.trim();
+  if(!paramsRaw) paramsRaw = '{}';
+  const cmd = `curl -X POST ${location.origin}/public/execute -H 'Content-Type: application/json' -d '{"method":"${tool}","params":${paramsRaw}}'`;
+  navigator.clipboard.writeText(cmd).then(()=>{
+    const s = document.getElementById('execStatus');
+    s.innerHTML = `<span class='ok'>Copied curl snippet</span>`;
+  }).catch(()=>{});
+}
+
+// Tabs
+document.querySelectorAll('.tab').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab').forEach(b=>{b.classList.remove('active'); b.setAttribute('aria-selected','false');});
+    btn.classList.add('active'); btn.setAttribute('aria-selected','true');
+    const tab = btn.getAttribute('data-tab');
+    document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+    document.getElementById(`panel-${tab}`).classList.add('active');
+  });
+});
+
 // Wire events
- document.getElementById('runBtn').addEventListener('click', runTool);
- document.getElementById('clearBtn').addEventListener('click', ()=>{document.getElementById('params').value=''; document.getElementById('result').textContent=''; document.getElementById('execStatus').textContent='';});
- document.getElementById('validateBtn').addEventListener('click', validate);
+document.getElementById('runBtn').addEventListener('click', runTool);
+document.getElementById('clearBtn').addEventListener('click', ()=>{document.getElementById('params').value=''; document.getElementById('result').textContent=''; document.getElementById('execStatus').textContent='';});
+document.getElementById('validateBtn').addEventListener('click', validate);
+document.getElementById('curlBtn').addEventListener('click', copyCurl);
+document.getElementById('toolSelect').addEventListener('change', e=> selectTool(e.target.value));
 
 loadHealth();
 </script>

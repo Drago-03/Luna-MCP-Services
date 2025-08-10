@@ -133,6 +133,17 @@ async def public_tools():
     return {"tools": sorted(PUBLIC_TOOLS)}
 
 
+@app.get("/public/describe/{tool_name}")
+async def public_describe(tool_name: str):
+    if tool_name not in PUBLIC_TOOLS:
+        raise HTTPException(status_code=403, detail="method_not_public")
+    fn = TOOL_REGISTRY.get(tool_name)
+    if not fn:
+        raise HTTPException(status_code=404, detail="tool_not_found")
+    doc = (fn.__doc__ or "").strip().split("MCP Tool:")[0].strip() or "No description available."
+    return {"tool": tool_name, "description": doc}
+
+
 @app.post("/public/execute")
 async def public_execute(body: Dict[str, Any]):
     method = body.get("method")

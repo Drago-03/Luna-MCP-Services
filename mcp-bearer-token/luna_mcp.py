@@ -90,6 +90,24 @@ async def mcp_endpoint(body: Dict[str, Any], request: Request):
     return {"jsonrpc": "2.0", "id": body.get("id"), "result": result}
 
 
+@app.get("/mcp")
+async def mcp_discovery():
+    """Lightweight discovery/diagnostic endpoint.
+
+    Some clients may issue a GET (or HEAD) to verify the MCP endpoint exists
+    before sending JSON-RPC POST calls. We return a simple JSON structure
+    without requiring auth (intentionally) – similar to `public/health` but
+    focused on protocol metadata. Does NOT execute tools.
+    """
+    return {
+        "ok": True,
+        "endpoint": "/mcp",
+        "protocol": "jsonrpc-2.0",
+        "methods": ["POST"],
+        "public_tools": sorted(PUBLIC_TOOLS),
+    }
+
+
 # -------------------- Public endpoints (no auth) -------------------- #
 def _sanitize(obj: Any) -> Any:
     if isinstance(obj, dict):

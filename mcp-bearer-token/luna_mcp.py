@@ -187,3 +187,14 @@ async def scaffold_project(name: str, with_tests: bool = True) -> Dict[str, Any]
 @tool("img_bw", "Fetch image & convert to grayscale (base64 PNG)")
 async def img_bw(image_url: str) -> str:
     return await fetch_and_bw(image_url)
+
+
+@tool("validate", "Return a fixed validation number in {country_code}{number} format")
+async def validate() -> dict:
+    """Return server's own number identifier.
+
+    Format: {country_code}{number} (no separators)
+    """
+    # Provided number: +91-9805763104 -> normalized to +919805763104 or 919805763104
+    # Requirement says {country_code}{number}; we'll omit the plus for strict concatenation.
+    return {"number": "919805763104"}

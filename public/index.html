@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Luna MCP Public Console</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    body { font-family: system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,sans-serif; margin: 0; padding: 1.5rem; background:#0d1117; color:#e6edf3; }
+    h1 { margin-top:0; }
+    .grid { display:grid; gap:1rem; grid-template-columns: repeat(auto-fit,minmax(260px,1fr)); }
+    section { background:#161b22; padding:1rem 1.2rem; border:1px solid #30363d; border-radius:8px; }
+    input, textarea, select { width:100%; box-sizing:border-box; background:#0d1117; color:#e6edf3; border:1px solid #30363d; border-radius:6px; padding:0.5rem; font-family:inherit; }
+    textarea { min-height:120px; }
+    button { background:#238636; color:#fff; border:none; border-radius:6px; padding:0.6rem 1rem; cursor:pointer; font-weight:600; }
+    button.secondary { background:#30363d; }
+    button:disabled { opacity:.5; cursor:not-allowed; }
+    pre { background:#0d1117; border:1px solid #30363d; padding:0.75rem; border-radius:6px; overflow:auto; max-height:300px; }
+    .status { font-size:0.875rem; margin-top:0.25rem; }
+    .ok { color:#2ea043; }
+    .err { color:#f85149; }
+    .badge { display:inline-block; padding:2px 8px; font-size:12px; background:#30363d; border-radius:999px; margin:2px; }
+    footer { margin-top:2rem; font-size:0.75rem; opacity:.6; }
+    .flex { display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; }
+  </style>
+</head>
+<body>
+  <h1>Luna MCP Public Console</h1>
+  <p>Call a curated set of public tools safely. No auth required. Outputs are sanitized to remove secrets.</p>
+  <div id="health" class="status">Loading health…</div>
+
+  <div class="grid">
+    <section>
+      <h2>Execute Tool</h2>
+      <label>Tool
+        <select id="toolSelect"></select>
+      </label>
+      <label>Parameters (JSON)
+        <textarea id="params" placeholder='{"prompt":"Hello"}'></textarea>
+      </label>
+      <div class="flex">
+        <button id="runBtn">Run</button>
+        <button class="secondary" id="clearBtn" type="button">Clear</button>
+      </div>
+      <div id="execStatus" class="status"></div>
+      <pre id="result"></pre>
+    </section>
+
+    <section>
+      <h2>Validate</h2>
+      <p>Returns server validation number.</p>
+      <button id="validateBtn">Get Number</button>
+      <pre id="validateOut"></pre>
+    </section>
+  </div>
+
+  <footer>© 2025 Luna MCP • Public tools only • Source on GitHub.</footer>
+
+<script>
+async function fetchJSON(url, opts={}) {
+  const res = await fetch(url, {headers:{'Content-Type':'application/json'}, ...opts});
+  if(!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+  return res.json();
+}
+async function loadHealth(){
+  try {
+    const h = await fetchJSON('/public/health');
+    document.getElementById('health').innerHTML = `Status: <span class='ok'>OK</span> • Public tools: ${h.tools.map(t=>`<span class=badge>${t}</span>`).join('')}`;
+    const sel = document.getElementById('toolSelect');
+    sel.innerHTML = h.tools.map(t=>`<option value="${t}">${t}</option>`).join('');
+  } catch(e){
+    document.getElementById('health').innerHTML = `<span class='err'>Health error: ${e.message}</span>`;
+  }
+}
+
+async function runTool(){
+  const tool = document.getElementById('toolSelect').value;
+  let paramsRaw = document.getElementById('params').value.trim();
+  let params = {};
+  if(paramsRaw){
+    try { params = JSON.parse(paramsRaw); }
+    catch(e){
+      document.getElementById('execStatus').innerHTML = `<span class='err'>Param JSON error: ${e.message}</span>`; return;
+    }
+  }
+  document.getElementById('runBtn').disabled = true;
+  document.getElementById('execStatus').textContent = 'Running…';
+  document.getElementById('result').textContent='';
+  const start = performance.now();
+  try {
+    const r = await fetchJSON('/public/execute', {method:'POST', body: JSON.stringify({method: tool, params})});
+    const ms = Math.round(performance.now()-start);
+    document.getElementById('execStatus').innerHTML = `<span class='ok'>Success</span> (${ms} ms)`;
+    document.getElementById('result').textContent = JSON.stringify(r, null, 2);
+  } catch(e){
+    document.getElementById('execStatus').innerHTML = `<span class='err'>Error: ${e.message}</span>`;
+  } finally { document.getElementById('runBtn').disabled = false; }
+}
+
+async function validate(){
+  const out = document.getElementById('validateOut');
+  out.textContent='';
+  try {
+    const r = await fetchJSON('/public/execute', {method:'POST', body: JSON.stringify({method:'validate', params:{}})});
+    out.textContent = JSON.stringify(r, null, 2);
+  } catch(e){
+    out.textContent = 'Error: '+ e.message;
+  }
+}
+
+// Wire events
+ document.getElementById('runBtn').addEventListener('click', runTool);
+ document.getElementById('clearBtn').addEventListener('click', ()=>{document.getElementById('params').value=''; document.getElementById('result').textContent=''; document.getElementById('execStatus').textContent='';});
+ document.getElementById('validateBtn').addEventListener('click', validate);
+
+loadHealth();
+</script>
+</body>
+</html>

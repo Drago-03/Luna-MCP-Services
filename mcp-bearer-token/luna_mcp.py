@@ -7,6 +7,9 @@ from typing import Any, Awaitable, Callable, Dict
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 
 from tools.github_tools import (
@@ -29,8 +32,24 @@ load_dotenv()
 AUTH_TOKEN = os.getenv("AUTH_TOKEN")
 LUNA_URL = os.getenv("LUNA_URL", "http://localhost:8000")
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
+PUBLIC_TOOLS = {
+    t.strip() for t in os.getenv("PUBLIC_TOOLS", "code_gen,validate").split(",") if t.strip()
+}
 
 app = FastAPI(title="Luna MCP Server", version="0.1.0")
+
+# CORS for public endpoints
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Static frontend (if present)
+if os.path.isdir("public"):
+    app.mount("/static", StaticFiles(directory="public"), name="static")
 
 ToolFunc = Callable[..., Awaitable[Any]]
 TOOL_REGISTRY: Dict[str, ToolFunc] = {}
@@ -69,6 +88,54 @@ async def mcp_endpoint(body: Dict[str, Any], request: Request):
     except Exception as e:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=str(e))
     return {"jsonrpc": "2.0", "id": body.get("id"), "result": result}
+
+# -------------------- Public endpoints (no auth) -------------------- #
+def _sanitize(obj: Any) -> Any:
+    if isinstance(obj, dict):
+        out = {}
+        for k, v in obj.items():
+            lk = k.lower()
+            if any(bad in lk for bad in ("token", "secret", "auth", "key")):
+                continue
+            out[k] = _sanitize(v)
+        return out
+    if isinstance(obj, list):
+        return [_sanitize(v) for v in obj]
+    return obj
+
+
+@app.get("/public/health")
+async def public_health():
+    return {"ok": True, "tools": sorted(PUBLIC_TOOLS)}
+
+
+@app.get("/public/tools")
+async def public_tools():
+    return {"tools": sorted(PUBLIC_TOOLS)}
+
+
+@app.post("/public/execute")
+async def public_execute(body: Dict[str, Any]):
+    method = body.get("method")
+    params = body.get("params") or {}
+    if method not in PUBLIC_TOOLS:
+        raise HTTPException(status_code=403, detail="method_not_public")
+    fn = TOOL_REGISTRY.get(method)
+    if not fn:
+        raise HTTPException(status_code=404, detail="tool_not_found")
+    try:
+        result = await fn(**params)
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=str(e))
+    return {"method": method, "result": _sanitize(result)}
+
+
+@app.get("/")
+async def index():
+    index_path = os.path.join("public", "index.html")
+    if os.path.isfile(index_path):
+        return FileResponse(index_path)
+    return {"message": "Luna MCP Server", "public_tools": sorted(PUBLIC_TOOLS)}
 
 
 @app.get("/healthz")

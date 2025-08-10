@@ -265,3 +265,28 @@ async def validate() -> dict:
     # Provided number: +91-9805763104 -> normalized to +919805763104 or 919805763104
     # Requirement says {country_code}{number}; we'll omit the plus for strict concatenation.
     return {"number": "919805763104"}
+
+
+# -------------------- Optional OAuth placeholder endpoints -------------------- #
+@app.get("/.well-known/oauth-authorization-server")
+async def oauth_metadata():
+    base = os.getenv("PUBLIC_BASE_URL", "http://localhost:8086")
+    return {
+        "issuer": base,
+        "authorization_endpoint": f"{base}/authorize",
+        "token_endpoint": f"{base}/token",
+        "scopes_supported": ["basic"],
+        "response_types_supported": ["code"],
+        "grant_types_supported": ["authorization_code"],
+    }
+
+
+@app.get("/authorize")
+async def oauth_authorize():
+    # Placeholder only; real flow would redirect after consent.
+    return {"detail": "OAuth authorize placeholder", "ok": False}
+
+
+@app.post("/token")
+async def oauth_token():
+    return {"access_token": "placeholder", "token_type": "bearer", "expires_in": 0}

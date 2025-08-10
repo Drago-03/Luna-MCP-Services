@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import os
-from typing import Any, Awaitable, Callable, Dict
+import json
+from typing import Any, Awaitable, Callable, Dict, AsyncGenerator
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request
@@ -161,6 +162,73 @@ async def public_execute(body: Dict[str, Any]):
         # Do not leak stack details publicly
         raise HTTPException(status_code=500, detail="tool_execution_failed") from e
     return {"method": method, "result": _sanitize(result)}
+
+
+@app.get("/public/stream")
+async def public_stream(method: str, params: str | None = None, prompt: str | None = None):
+    """Simple Server-Sent Events (SSE) streaming wrapper around a tool.
+
+    Query Parameters:
+      - method: name of the public tool
+      - params: optional JSON object (string) of parameters
+      - prompt: convenience shortcut for code_gen (merged into params if provided)
+
+    Behavior:
+      Executes the tool, then streams the textual result in chunks. If the tool
+      returns a dict / list, it will be JSON serialized and chunked. This is a
+      *simulated* streaming for demo purposes (tool itself is not inherently
+      streaming yet) but provides a stable SSE contract for UI integration.
+    """
+    if method not in PUBLIC_TOOLS:
+        raise HTTPException(status_code=403, detail="method_not_public")
+    fn = TOOL_REGISTRY.get(method)
+    if not fn:
+        raise HTTPException(status_code=404, detail="tool_not_found")
+
+    # Parse params JSON if provided
+    param_dict: Dict[str, Any] = {}
+    if params:
+        try:
+            param_dict = json.loads(params)
+            if not isinstance(param_dict, dict):
+                raise ValueError("params must be an object")
+        except Exception as e:  # noqa: BLE001
+            raise HTTPException(status_code=400, detail=f"invalid_params: {e}") from e
+    if prompt and "prompt" not in param_dict:
+        param_dict["prompt"] = prompt
+
+    async def generate() -> AsyncGenerator[bytes, None]:
+        # Start event
+        yield b"event: start\n" + f"data: {{\"method\": \"{method}\"}}\n\n".encode()
+        try:
+            result = await fn(**param_dict)
+        except TypeError as te:
+            yield b"event: error\n" + f"data: {{\"error\": \"parameter_error: {str(te).replace('\\', '')}\"}}\n\n".encode()
+            return
+        except Exception as e:  # noqa: BLE001
+            yield b"event: error\n" + f"data: {{\"error\": \"execution_failed\", \"detail\": \"{str(e).replace('\\', '')[:200]}\"}}\n\n".encode()
+            return
+
+        # Normalize to string for chunking
+        if isinstance(result, (dict, list)):
+            text = json.dumps(_sanitize(result), indent=2)
+        else:
+            text = str(result)
+
+        # Chunk the text (approx 120 chars per fragment)
+        chunk_size = 120
+        for i in range(0, len(text), chunk_size):
+            frag = text[i : i + chunk_size]
+            payload = json.dumps({"chunk": frag, "offset": i})
+            yield b"data: " + payload.encode() + b"\n\n"
+        # End event
+        yield b"event: end\n" + b"data: {\"ok\": true}\n\n"
+
+    headers = {
+        "Cache-Control": "no-cache",
+        "X-Accel-Buffering": "no",  # nginx / proxies
+    }
+    return StreamingResponse(generate(), media_type="text/event-stream", headers=headers)
 
 
 @app.get("/")

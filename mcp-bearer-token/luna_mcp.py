@@ -89,6 +89,7 @@ async def mcp_endpoint(body: Dict[str, Any], request: Request):
         raise HTTPException(status_code=500, detail=str(e))
     return {"jsonrpc": "2.0", "id": body.get("id"), "result": result}
 
+
 # -------------------- Public endpoints (no auth) -------------------- #
 def _sanitize(obj: Any) -> Any:
     if isinstance(obj, dict):

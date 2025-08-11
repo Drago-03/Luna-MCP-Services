@@ -4,6 +4,17 @@ __pycache__
 repos
 tests
 .git
+.gitignore
 *.log
 dist
 build
+.mypy_cache
+.ruff_cache
+coverage.xml
+.coverage*
+.vscode
+.idea
+quickstart.sh
+acceptance_test.sh
+HOW_TO_DEMO.txt
+tempCodeRunnerFile.sh

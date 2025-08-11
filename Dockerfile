@@ -13,12 +13,17 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends git libjpeg-dev zlib1g-dev curl \
  && rm -rf /var/lib/apt/lists/*
 
-# Copy project metadata & lockfile early for better layer caching
-COPY pyproject.toml uv.lock README.md /app/
+# Copy project metadata & dependency manifests early for better layer caching
+COPY pyproject.toml uv.lock requirements.txt README.md /app/
 
-# Install uv (fast dep manager) and sync prod deps only
+# Install production dependencies (prefer uv.lock if present, fallback to requirements.txt)
 RUN pip install --upgrade pip uv \
- && uv sync --no-dev --frozen
+ && if [ -f uv.lock ]; then \
+            echo 'Using uv.lock for deterministic install'; \
+            uv sync --no-dev --frozen || { echo 'uv sync failed; falling back to pip requirements.txt'; pip install --no-cache-dir -r requirements.txt; }; \
+        else \
+            pip install --no-cache-dir -r requirements.txt; \
+        fi
 
 # Copy source code last (invalidate layer only when code changes)
 COPY mcp-bearer-token/ mcp-bearer-token/

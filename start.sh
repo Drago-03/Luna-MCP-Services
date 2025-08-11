@@ -29,5 +29,15 @@ except Exception as e: # noqa: BLE001
 	print("[dep-error] fastapi import failed", e)
 PY
 
+# If critical deps missing (e.g., uvicorn) attempt a last-chance install (useful on Render if layer cache stale)
+if ! command -v uvicorn >/dev/null 2>&1; then
+	echo "[start.sh] uvicorn not found in PATH. Attempting emergency dependency install..." >&2
+	if [ -f requirements.txt ]; then
+		pip install --no-cache-dir -r requirements.txt || echo "[start.sh] Emergency install failed" >&2
+	else
+		echo "[start.sh] requirements.txt missing; cannot self-heal deps" >&2
+	fi
+fi
+
 echo "[start.sh] Launching uvicorn..." >&2
-exec uvicorn mcp-bearer-token.luna_mcp:app --host 0.0.0.0 --port "${PORT}" --no-server-header
+exec python -m uvicorn mcp-bearer-token.luna_mcp:app --host 0.0.0.0 --port "${PORT}" --no-server-header

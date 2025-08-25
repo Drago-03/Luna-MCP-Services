@@ -212,7 +212,7 @@ async def public_stream(method: str, params: str | None = None, prompt: str | No
 
     async def generate() -> AsyncGenerator[bytes, None]:
         # Start event
-        yield b"event: start\n" + f"data: {{\"method\": \"{method}\"}}\n\n".encode()
+        yield b"event: start\n" + f'data: {{"method": "{method}"}}\n\n'.encode()
         try:
             t0 = time.perf_counter()
             # If the tool is streaming capable (exposes _stream attr), iterate
@@ -233,10 +233,16 @@ async def public_stream(method: str, params: str | None = None, prompt: str | No
                 result = await fn(**param_dict)
             record_latency(method, t0)
         except TypeError as te:
-            yield b"event: error\n" + f"data: {{\"error\": \"parameter_error: {str(te).replace('\\', '')}\"}}\n\n".encode()
+            yield (
+                b"event: error\n"
+                + f'data: {{"error": "parameter_error: {str(te).replace("\\", "")}"}}\n\n'.encode()
+            )
             return
         except Exception as e:  # noqa: BLE001
-            yield b"event: error\n" + f"data: {{\"error\": \"execution_failed\", \"detail\": \"{str(e).replace('\\', '')[:200]}\"}}\n\n".encode()
+            yield (
+                b"event: error\n"
+                + f'data: {{"error": "execution_failed", "detail": "{str(e).replace("\\", "")[:200]}"}}\n\n'.encode()
+            )
             return
 
         # Normalize to string for chunking
@@ -252,7 +258,7 @@ async def public_stream(method: str, params: str | None = None, prompt: str | No
             payload = json.dumps({"chunk": frag, "offset": i})
             yield b"data: " + payload.encode() + b"\n\n"
         # End event
-        yield b"event: end\n" + b"data: {\"ok\": true}\n\n"
+        yield b"event: end\n" + b'data: {"ok": true}\n\n'
 
     headers = {
         "Cache-Control": "no-cache",
@@ -326,7 +332,10 @@ def _detect_lang(code: str) -> str:
     return "plaintext"
 
 
-@tool("code_gen", "Generate code through Luna Services Gemini pipeline with graceful fallback (stream aware)")
+@tool(
+    "code_gen",
+    "Generate code through Luna Services Gemini pipeline with graceful fallback (stream aware)",
+)
 async def code_gen(prompt: str) -> Dict[str, Any]:
     """Return generated code and detected language.
 
@@ -343,7 +352,7 @@ async def code_gen(prompt: str) -> Dict[str, Any]:
         code = (
             "// Fallback (generation unavailable)\n"
             f"// Prompt: {prompt}\n"
-            "fn main() { println!(\"Hello, world!\"); }"
+            'fn main() { println!("Hello, world!"); }'
         )
     return {"code": code, "language": _detect_lang(code)}
 
@@ -369,8 +378,10 @@ class _CodeGenStreamer:
         self._index += 1
         return chunk
 
+
 def code_gen_stream_factory(**kwargs):  # type: ignore[override]
     return _CodeGenStreamer(prompt=kwargs.get("prompt", ""))
+
 
 setattr(code_gen, "_stream", code_gen_stream_factory)
 

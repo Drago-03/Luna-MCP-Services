@@ -2,33 +2,34 @@
 
 from __future__ import annotations
 
-import os
 import json
+import os
 import re
 import time
 from collections import defaultdict, deque
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from statistics import mean
-from typing import Any, Awaitable, Callable, Dict, AsyncGenerator, Deque, List
+from typing import Any
 
 import httpx
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, StreamingResponse
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 
-from tools.github_tools import (
-    clone_repo,
-    create_branch,
-    commit_file,
-    open_pr,
-    list_issues,
-)
 from tools.automation_tools import (
-    trigger_workflow,
-    run_pytest,
     build_docker_image,
     project_scaffold,
+    run_pytest,
+    trigger_workflow,
+)
+from tools.github_tools import (
+    clone_repo,
+    commit_file,
+    create_branch,
+    list_issues,
+    open_pr,
 )
 from tools.image_tools import fetch_and_bw
 
@@ -57,8 +58,8 @@ if os.path.isdir("public"):
     app.mount("/static", StaticFiles(directory="public"), name="static")
 
 ToolFunc = Callable[..., Awaitable[Any]]
-TOOL_REGISTRY: Dict[str, ToolFunc] = {}
-LATENCY_HISTORY: Dict[str, Deque[float]] = defaultdict(lambda: deque(maxlen=500))
+TOOL_REGISTRY: dict[str, ToolFunc] = {}
+LATENCY_HISTORY: dict[str, deque[float]] = defaultdict(lambda: deque(maxlen=500))
 
 
 def record_latency(name: str, start: float):
@@ -82,7 +83,7 @@ def _verify(req: Request):
 
 
 @app.post("/mcp")
-async def mcp_endpoint(body: Dict[str, Any], request: Request):
+async def mcp_endpoint(body: dict[str, Any], request: Request):
     _verify(request)
     method = body.get("method")
     params = body.get("params") or {}
@@ -157,7 +158,7 @@ async def public_describe(tool_name: str):
 
 
 @app.post("/public/execute")
-async def public_execute(body: Dict[str, Any]):
+async def public_execute(body: dict[str, Any]):
     method = body.get("method")
     params = body.get("params") or {}
     if method not in PUBLIC_TOOLS:
@@ -171,7 +172,7 @@ async def public_execute(body: Dict[str, Any]):
         record_latency(method, t0)
     except TypeError as te:  # parameter mismatch
         raise HTTPException(status_code=400, detail=f"parameter_error: {te}") from te
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         # Do not leak stack details publicly
         raise HTTPException(status_code=500, detail="tool_execution_failed") from e
     return {"method": method, "result": _sanitize(result)}
@@ -199,20 +200,20 @@ async def public_stream(method: str, params: str | None = None, prompt: str | No
         raise HTTPException(status_code=404, detail="tool_not_found")
 
     # Parse params JSON if provided
-    param_dict: Dict[str, Any] = {}
+    param_dict: dict[str, Any] = {}
     if params:
         try:
             param_dict = json.loads(params)
             if not isinstance(param_dict, dict):
                 raise ValueError("params must be an object")
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             raise HTTPException(status_code=400, detail=f"invalid_params: {e}") from e
     if prompt and "prompt" not in param_dict:
         param_dict["prompt"] = prompt
 
     async def generate() -> AsyncGenerator[bytes, None]:
         # Start event
-        yield b"event: start\n" + f"data: {{\"method\": \"{method}\"}}\n\n".encode()
+        yield b"event: start\n" + f'data: {{"method": "{method}"}}\n\n'.encode()
         try:
             t0 = time.perf_counter()
             # If the tool is streaming capable (exposes _stream attr), iterate
@@ -233,10 +234,16 @@ async def public_stream(method: str, params: str | None = None, prompt: str | No
                 result = await fn(**param_dict)
             record_latency(method, t0)
         except TypeError as te:
-            yield b"event: error\n" + f"data: {{\"error\": \"parameter_error: {str(te).replace('\\', '')}\"}}\n\n".encode()
+            yield (
+                b"event: error\n"
+                + f'data: {{"error": "parameter_error: {str(te).replace("\\", "")}"}}\n\n'.encode()
+            )
             return
         except Exception as e:  # noqa: BLE001
-            yield b"event: error\n" + f"data: {{\"error\": \"execution_failed\", \"detail\": \"{str(e).replace('\\', '')[:200]}\"}}\n\n".encode()
+            yield (
+                b"event: error\n"
+                + f'data: {{"error": "execution_failed", "detail": "{str(e).replace("\\", "")[:200]}"}}\n\n'.encode()
+            )
             return
 
         # Normalize to string for chunking
@@ -252,7 +259,7 @@ async def public_stream(method: str, params: str | None = None, prompt: str | No
             payload = json.dumps({"chunk": frag, "offset": i})
             yield b"data: " + payload.encode() + b"\n\n"
         # End event
-        yield b"event: end\n" + b"data: {\"ok\": true}\n\n"
+        yield b"event: end\n" + b'data: {"ok": true}\n\n'
 
     headers = {
         "Cache-Control": "no-cache",
@@ -264,11 +271,11 @@ async def public_stream(method: str, params: str | None = None, prompt: str | No
 @app.get("/public/metrics")
 async def public_metrics():
     """Return aggregate latency metrics per tool (avg, p95, count)."""
-    out: Dict[str, Dict[str, float | int]] = {}
+    out: dict[str, dict[str, float | int]] = {}
     for tool, hist in LATENCY_HISTORY.items():
         if not hist:
             continue
-        arr: List[float] = list(hist)
+        arr: list[float] = list(hist)
         arr_sorted = sorted(arr)
         p95 = arr_sorted[min(len(arr_sorted) - 1, int(0.95 * len(arr_sorted)))]
         out[tool] = {
@@ -292,7 +299,7 @@ async def healthz():
     return {"ok": True, "tool_count": len(TOOL_REGISTRY), "tools": sorted(TOOL_REGISTRY.keys())}
 
 
-async def _post_luna(path: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+async def _post_luna(path: str, payload: dict[str, Any]) -> dict[str, Any]:
     url = f"{LUNA_URL}{path}"
     async with httpx.AsyncClient(timeout=30.0) as client:
         try:
@@ -303,7 +310,7 @@ async def _post_luna(path: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         raise HTTPException(status_code=502, detail=f"Upstream {r.status_code}: {r.text[:400]}")
     try:
         return r.json()
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         raise HTTPException(status_code=502, detail="Invalid JSON from upstream") from e
 
 
@@ -326,8 +333,11 @@ def _detect_lang(code: str) -> str:
     return "plaintext"
 
 
-@tool("code_gen", "Generate code through Luna Services Gemini pipeline with graceful fallback (stream aware)")
-async def code_gen(prompt: str) -> Dict[str, Any]:
+@tool(
+    "code_gen",
+    "Generate code through Luna Services Gemini pipeline with graceful fallback (stream aware)",
+)
+async def code_gen(prompt: str) -> dict[str, Any]:
     """Return generated code and detected language.
 
     Normal response shape:
@@ -343,7 +353,7 @@ async def code_gen(prompt: str) -> Dict[str, Any]:
         code = (
             "// Fallback (generation unavailable)\n"
             f"// Prompt: {prompt}\n"
-            "fn main() { println!(\"Hello, world!\"); }"
+            'fn main() { println!("Hello, world!"); }'
         )
     return {"code": code, "language": _detect_lang(code)}
 
@@ -351,7 +361,7 @@ async def code_gen(prompt: str) -> Dict[str, Any]:
 class _CodeGenStreamer:
     def __init__(self, prompt: str):
         self.prompt = prompt
-        self._chunks: List[str] | None = None
+        self._chunks: list[str] | None = None
         self._index = 0
 
     def __aiter__(self):
@@ -369,15 +379,17 @@ class _CodeGenStreamer:
         self._index += 1
         return chunk
 
+
 def code_gen_stream_factory(**kwargs):  # type: ignore[override]
     return _CodeGenStreamer(prompt=kwargs.get("prompt", ""))
 
-setattr(code_gen, "_stream", code_gen_stream_factory)
+
+code_gen._stream = code_gen_stream_factory
 
 
 @tool("voice_speak", "Text-to-speech via Luna Services; returns base64 audio payload")
-async def voice_speak(text: str, voice: str | None = None) -> Dict[str, Any]:
-    payload: Dict[str, Any] = {"text": text}
+async def voice_speak(text: str, voice: str | None = None) -> dict[str, Any]:
+    payload: dict[str, Any] = {"text": text}
     if voice:
         payload["voice"] = voice
     return await _post_luna("/api/ai/voice", payload)
@@ -390,13 +402,13 @@ async def bw_remote(image_url: str) -> str:
 
 
 @tool("git_clone", "Shallow clone a public GitHub repository")
-async def git_clone(url: str) -> Dict[str, Any]:
+async def git_clone(url: str) -> dict[str, Any]:
     path = await clone_repo(url)
     return {"path": path}
 
 
 @tool("create_branch", "Create branch from base ref in a repository")
-async def create_branch_tool(owner: str, repo: str, base: str, new_branch: str) -> Dict[str, Any]:
+async def create_branch_tool(owner: str, repo: str, base: str, new_branch: str) -> dict[str, Any]:
     return await create_branch(owner, repo, base, new_branch)
 
 
@@ -408,7 +420,7 @@ async def commit_file_tool(
     path: str,
     content_b64: str,
     message: str,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     return await commit_file(owner, repo, branch, path, content_b64, message)
 
 
@@ -420,12 +432,12 @@ async def open_pr_tool(
     base: str,
     title: str,
     body: str = "",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     return await open_pr(owner, repo, head, base, title, body)
 
 
 @tool("list_issues", "List open issues (limited)")
-async def list_issues_tool(owner: str, repo: str, limit: int = 20) -> Dict[str, Any]:
+async def list_issues_tool(owner: str, repo: str, limit: int = 20) -> dict[str, Any]:
     return await list_issues(owner, repo, limit)
 
 
@@ -435,25 +447,25 @@ async def ci_trigger(
     repo: str,
     workflow_file: str,
     ref: str = "main",
-    inputs: Dict[str, str] | None = None,
-) -> Dict[str, Any]:
+    inputs: dict[str, str] | None = None,
+) -> dict[str, Any]:
     if not inputs:
         inputs = {}
     return await trigger_workflow(owner, repo, workflow_file, ref, inputs)
 
 
 @tool("run_tests", "Run pytest (if installed) and return summary")
-async def run_tests() -> Dict[str, Any]:
+async def run_tests() -> dict[str, Any]:
     return await run_pytest()
 
 
 @tool("build_image", "Build a Docker image from current directory")
-async def build_image(tag: str = "luna-mcp:latest") -> Dict[str, Any]:
+async def build_image(tag: str = "luna-mcp:latest") -> dict[str, Any]:
     return await build_docker_image(tag)
 
 
 @tool("scaffold_project", "Scaffold a new Python package (with optional tests)")
-async def scaffold_project(name: str, with_tests: bool = True) -> Dict[str, Any]:
+async def scaffold_project(name: str, with_tests: bool = True) -> dict[str, Any]:
     return await project_scaffold(name, with_tests)
 
 

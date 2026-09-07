@@ -174,7 +174,7 @@ Example:
 ```python
 @tool("echo", "Echo back a message")
 async def echo(message: str) -> dict:
-	return {"echo": message}
+    return {"echo": message}
 ```
 
 Guidelines:
@@ -224,7 +224,12 @@ Example minimal signing snippet (not yet wired):
 
 ```python
 import jwt, time, os
-token = jwt.encode({"sub":"user123","exp":int(time.time())+900}, os.environ['OAUTH_SIGNING_KEY'], algorithm='HS256')
+
+token = jwt.encode(
+    {"sub": "user123", "exp": int(time.time()) + 900},
+    os.environ["OAUTH_SIGNING_KEY"],
+    algorithm="HS256",
+)
 ```
 
 PRs welcome to complete the flow.

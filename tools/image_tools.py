@@ -1,6 +1,7 @@
 # moved from subdirectory
-import io
 import base64
+import io
+
 import httpx
 from PIL import Image
 

@@ -20,7 +20,7 @@ if spec is None or spec.loader is None:  # pragma: no cover
 mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)  # type: ignore[arg-type]
 
-app = getattr(mod, "app")
-TOOL_REGISTRY = getattr(mod, "TOOL_REGISTRY")
+app = mod.app
+TOOL_REGISTRY = mod.TOOL_REGISTRY
 loaded_module = mod  # provide access for advanced tests
-__all__ = ["app", "TOOL_REGISTRY", "loaded_module"]
+__all__ = ["TOOL_REGISTRY", "app", "loaded_module"]

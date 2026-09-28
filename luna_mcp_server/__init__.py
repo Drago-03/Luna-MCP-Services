@@ -9,7 +9,7 @@ from __future__ import annotations
 from importlib import import_module as _im
 
 _mod = _im("mcp_bearer_token")
-app = getattr(_mod, "app")
-TOOL_REGISTRY = getattr(_mod, "TOOL_REGISTRY")
+app = _mod.app
+TOOL_REGISTRY = _mod.TOOL_REGISTRY
 
-__all__ = ["app", "TOOL_REGISTRY"]
+__all__ = ["TOOL_REGISTRY", "app"]

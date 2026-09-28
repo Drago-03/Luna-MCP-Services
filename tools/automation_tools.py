@@ -1,7 +1,7 @@
 # moved from subdirectory
-import os
 import asyncio
-from typing import Dict, Any
+import os
+from typing import Any
 
 import httpx
 
@@ -17,13 +17,13 @@ async def _run(cmd: list[str], cwd: str | None = None, timeout: int = 900) -> tu
     )
     try:
         out, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         proc.kill()
         raise RuntimeError(f"Timeout running: {' '.join(cmd)}")
     return proc.returncode, out.decode(errors="replace")
 
 
-async def run_pytest() -> Dict[str, Any]:
+async def run_pytest() -> dict[str, Any]:
     if not any(os.path.exists(p) for p in ("tests", "test")):
         return {"skipped": True, "reason": "No tests directory."}
     try:
@@ -38,14 +38,14 @@ async def run_pytest() -> Dict[str, Any]:
     }
 
 
-async def build_docker_image(tag: str) -> Dict[str, Any]:
+async def build_docker_image(tag: str) -> dict[str, Any]:
     code, output = await _run(["docker", "build", "-t", tag, "."])
     return {"exit_code": code, "tag": tag, "tail": output[-1200:]}
 
 
 async def trigger_workflow(
-    owner: str, repo: str, workflow_file: str, ref: str, inputs: Dict[str, str]
-) -> Dict[str, Any]:
+    owner: str, repo: str, workflow_file: str, ref: str, inputs: dict[str, str]
+) -> dict[str, Any]:
     if not GITHUB_TOKEN:
         raise RuntimeError("GITHUB_TOKEN required for workflow dispatch.")
     url = (
@@ -60,7 +60,7 @@ async def trigger_workflow(
     return {"dispatched": True, "workflow": workflow_file, "ref": ref}
 
 
-async def project_scaffold(name: str, with_tests: bool) -> Dict[str, Any]:
+async def project_scaffold(name: str, with_tests: bool) -> dict[str, Any]:
     if os.path.exists(name):
         return {"created": False, "reason": "already exists"}
     os.makedirs(name, exist_ok=True)

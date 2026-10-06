@@ -1,8 +1,8 @@
 # moved from subdirectory
-import os
-import base64
 import asyncio
-from typing import Dict, Any, List
+import base64
+import os
+from typing import Any
 
 from github import Github, GithubException
 
@@ -21,7 +21,7 @@ def _client_lazy() -> Github:
     return _client
 
 
-async def _run_cmd(cmd: List[str], cwd: str | None = None, timeout: int = 600) -> str:
+async def _run_cmd(cmd: list[str], cwd: str | None = None, timeout: int = 600) -> str:
     proc = await asyncio.create_subprocess_exec(
         *cmd,
         cwd=cwd,
@@ -30,7 +30,7 @@ async def _run_cmd(cmd: List[str], cwd: str | None = None, timeout: int = 600) -
     )
     try:
         out, _ = await asyncio.wait_for(proc.communicate(), timeout)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         proc.kill()
         raise RuntimeError(f"Command timed out: {' '.join(cmd)}")
     if proc.returncode != 0:
@@ -50,7 +50,7 @@ async def clone_repo(url: str) -> str:
     return dest
 
 
-async def create_branch(owner: str, repo: str, base: str, new_branch: str) -> Dict[str, Any]:
+async def create_branch(owner: str, repo: str, base: str, new_branch: str) -> dict[str, Any]:
     gh = _client_lazy()
     r = gh.get_repo(f"{owner}/{repo}")
     base_ref = r.get_git_ref(f"heads/{base}")
@@ -63,12 +63,12 @@ async def create_branch(owner: str, repo: str, base: str, new_branch: str) -> Di
 
 async def commit_file(
     owner: str, repo: str, branch: str, path: str, content_b64: str, message: str
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     gh = _client_lazy()
     r = gh.get_repo(f"{owner}/{repo}")
     try:
         decoded = base64.b64decode(content_b64).decode("utf-8")
-    except Exception as e:  # noqa
+    except Exception as e:
         raise RuntimeError("Invalid base64 content") from e
     try:
         existing = r.get_contents(path, ref=branch)
@@ -82,14 +82,14 @@ async def commit_file(
 
 async def open_pr(
     owner: str, repo: str, head: str, base: str, title: str, body: str
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     gh = _client_lazy()
     r = gh.get_repo(f"{owner}/{repo}")
     pr = r.create_pull(title=title, body=body, head=head, base=base)
     return {"number": pr.number, "url": pr.html_url, "title": pr.title}
 
 
-async def list_issues(owner: str, repo: str, limit: int) -> Dict[str, Any]:
+async def list_issues(owner: str, repo: str, limit: int) -> dict[str, Any]:
     gh = _client_lazy()
     r = gh.get_repo(f"{owner}/{repo}")
     issues = r.get_issues(state="open")

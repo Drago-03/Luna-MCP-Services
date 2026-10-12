@@ -1,4 +1,5 @@
 import pytest
+
 from mcp_bearer_token import TOOL_REGISTRY, loaded_module
 
 
@@ -9,7 +10,7 @@ async def test_code_gen_fallback(monkeypatch):
     class DummyHTTPError(Exception):
         pass
 
-    async def broken_post(*args, **kwargs):  # noqa: ANN001, D401
+    async def broken_post(*args, **kwargs):
         raise DummyHTTPError("network down")
 
     # Monkeypatch internal _post_luna used in code_gen (module attribute resolution)

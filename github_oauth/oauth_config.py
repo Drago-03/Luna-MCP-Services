@@ -1,13 +1,12 @@
 # moved from subdirectory
-from dataclasses import dataclass
 import os
-from typing import Optional
+from dataclasses import dataclass
 
 
 @dataclass
 class GitHubOAuthConfig:
-    client_id: Optional[str]
-    client_secret: Optional[str]
+    client_id: str | None
+    client_secret: str | None
     authorize_url: str = "https://github.com/login/oauth/authorize"
     token_url: str = "https://github.com/login/oauth/access_token"
     scopes: str = "repo workflow"

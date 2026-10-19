@@ -1,4 +1,5 @@
 from fastapi.testclient import TestClient
+
 from mcp_bearer_token import app
 
 
